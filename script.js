@@ -5,6 +5,7 @@ let qrScanFails = 0;
 let extractionPromise = null;
 let extractedData = null;
 let abortController = null;
+let html5QrCode;
 
 document.querySelectorAll('input[type="text"], input[type="number"]').forEach(input => {
   input.addEventListener('input', (e) => {
@@ -21,6 +22,8 @@ flatpickr("#tanggal_pekerjaan", {
 });
 
 window.addEventListener('DOMContentLoaded', () => {
+  html5QrCode = new Html5Qrcode("qr-reader");
+
   ['nomor_wp', 'nama_pekerjaan', 'tanggal_pekerjaan', 'lokasi', 'tim_pelaksana', 'pengawas_k3', 'pengawas_pekerjaan', 'jumlah_pelaksana'].forEach(id => {
     const val = localStorage.getItem(`safbri_${id}`);
     if (val && document.getElementById(id)) document.getElementById(id).value = val;
@@ -187,7 +190,38 @@ const prevStep = (targetStep) => {
   updateUI();
 };
 
+const triggerScanFail = () => {
+    qrScanFails++;
+    document.getElementById('qr-error-msg').classList.remove('hidden');
+    document.getElementById('btn-next-1').disabled = true;
+    if (qrScanFails >= 2) {
+        document.getElementById('manual-override-container').classList.remove('hidden');
+        document.getElementById('manual-override-container').classList.add('flex');
+    }
+};
+
 const resizeAndScanImage = (file, type) => {
+    if (type === 'WP') {
+        html5QrCode.scanFile(file, false)
+        .then(decodedText => {
+            if (decodedText.includes('hsse.pln.co.id')) {
+                document.getElementById('qr-error-msg').classList.add('hidden');
+                document.getElementById('manual-override-container').classList.add('hidden');
+                document.getElementById('btn-next-1').disabled = false;
+                extractedData = null;
+                extractionPromise = fetchExtractionData(decodedText);
+                nextStep(2);
+            } else {
+                triggerScanFail();
+            }
+        })
+        .catch(err => {
+            triggerScanFail();
+        });
+    } else if (type === 'SB') {
+        document.getElementById('btn-next-2').disabled = false;
+    }
+
     const reader = new FileReader();
     reader.onload = (e) => {
         const img = new Image();
@@ -220,41 +254,6 @@ const resizeAndScanImage = (file, type) => {
             preview.src = base64Compressed;
             preview.classList.remove('hidden');
             document.getElementById(`retake-btn-${type}`).classList.remove('hidden');
-
-            if (type === 'WP') {
-                const imageData = ctx.getImageData(0, 0, width, height);
-                const pixels = imageData.data;
-                
-                for (let i = 0; i < pixels.length; i += 4) {
-                    let lightness = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
-                    let color = lightness > 105 ? 255 : 0;
-                    pixels[i] = color;
-                    pixels[i + 1] = color;
-                    pixels[i + 2] = color;
-                }
-                
-                const code = jsQR(pixels, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
-                
-                if (code && code.data && code.data.includes('hsse.pln.co.id')) {
-                    document.getElementById('qr-error-msg').classList.add('hidden');
-                    document.getElementById('manual-override-container').classList.add('hidden');
-                    document.getElementById('btn-next-1').disabled = false;
-                    
-                    extractedData = null;
-                    extractionPromise = fetchExtractionData(code.data);
-                    nextStep(2);
-                } else {
-                    qrScanFails++;
-                    document.getElementById('qr-error-msg').classList.remove('hidden');
-                    document.getElementById('btn-next-1').disabled = true;
-                    if (qrScanFails >= 2) {
-                        document.getElementById('manual-override-container').classList.remove('hidden');
-                        document.getElementById('manual-override-container').classList.add('flex');
-                    }
-                }
-            } else if (type === 'SB') {
-                document.getElementById('btn-next-2').disabled = false;
-            }
         };
         img.src = e.target.result;
     };
