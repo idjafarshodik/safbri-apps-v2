@@ -223,7 +223,17 @@ const resizeAndScanImage = (file, type) => {
 
             if (type === 'WP') {
                 const imageData = ctx.getImageData(0, 0, width, height);
-                const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+                const pixels = imageData.data;
+                
+                for (let i = 0; i < pixels.length; i += 4) {
+                    let lightness = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+                    let color = lightness > 105 ? 255 : 0;
+                    pixels[i] = color;
+                    pixels[i + 1] = color;
+                    pixels[i + 2] = color;
+                }
+                
+                const code = jsQR(pixels, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
                 
                 if (code && code.data && code.data.includes('hsse.pln.co.id')) {
                     document.getElementById('qr-error-msg').classList.add('hidden');
