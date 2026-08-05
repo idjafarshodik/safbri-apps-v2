@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Safety Briefing ULTG Sampang</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -31,7 +31,7 @@
   <div class="w-full max-w-md mb-3 flex flex-col items-center">
     <div class="text-center mb-3 w-full px-2">
         <h1 class="text-2xl font-extrabold text-pln-dark mb-1">SAFBRI V2</h1>
-        <p class="text-sm text-pln-muted font-semibold">ULTG Sampang <span class="text-xs font-normal text-gray-400 block mt-1">v.2.01 - Evaluasi engine QR Code</span></p>
+        <p class="text-sm text-pln-muted font-semibold">ULTG Sampang <span class="text-xs font-normal text-gray-400 block mt-1">v.2.02 - Migrasi Engine QR</span></p>
     </div>
   </div>
 
@@ -61,15 +61,23 @@
         <h2 class="text-xl font-extrabold mb-2 text-pln-dark">Foto Working Permit</h2>
         <p class="text-sm text-pln-muted mb-4">Pastikan dokumen difoto tegak (Portrait) di bidang datar dan QR Code terlihat jelas agar data dapat diisi otomatis.</p>
         
-        <div class="relative w-full aspect-[3/4] bg-pln-soft rounded-xl border-2 border-dashed border-pln-main flex flex-col items-center justify-center overflow-hidden mb-4 hover:bg-teal-50 transition-colors">
-          <input type="file" id="file-upload-WP" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" onchange="handleFile(this, 'WP')">
-          <div id="init-ui-WP" class="flex flex-col items-center pointer-events-none">
-            <div class="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mb-3 text-pln-main">
-              <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+        <div class="relative w-full aspect-[3/4] bg-white rounded-xl border-2 border-dashed border-gray-300 p-6 flex flex-col items-center justify-center mb-4">
+          <div id="init-ui-WP" class="w-full flex flex-col gap-4 z-20">
+            <button type="button" onclick="document.getElementById('camera-WP').click()" class="w-full py-4 bg-[#2563eb] text-white font-bold rounded-lg shadow-sm flex items-center justify-center gap-2 transition-transform active:scale-95">
+              📸 AMBIL FOTO
+            </button>
+            <div class="flex items-center w-full my-1">
+              <div class="flex-grow border-t border-gray-200"></div>
+              <span class="px-3 text-xs text-gray-400 font-medium">ATAU</span>
+              <div class="flex-grow border-t border-gray-200"></div>
             </div>
-            <span class="font-bold text-pln-dark">Ambil Foto WP</span>
+            <button type="button" onclick="document.getElementById('gallery-WP').click()" class="w-full py-4 bg-[#334155] text-white font-bold rounded-lg shadow-sm flex items-center justify-center gap-2 transition-transform active:scale-95">
+              📁 GALERI
+            </button>
           </div>
-          <img id="preview-WP" class="absolute inset-0 w-full h-full object-cover hidden z-10">
+          <img id="preview-WP" class="absolute inset-0 w-full h-full object-cover rounded-xl hidden z-30">
+          <input type="file" id="camera-WP" accept="image/*" capture="environment" class="hidden" onchange="handleFile(this, 'WP')">
+          <input type="file" id="gallery-WP" accept="image/*" class="hidden" onchange="handleFile(this, 'WP')">
         </div>
 
         <div id="qr-error-msg" class="text-red-500 text-sm font-bold mt-2 text-center hidden transition-all duration-300">
@@ -94,15 +102,23 @@
         <h2 class="text-xl font-extrabold mb-2 text-pln-dark">Foto Safety Briefing</h2>
         <p class="text-sm text-pln-muted mb-4">Ambil foto dokumentasi kegiatan Safety Briefing bersama tim pelaksana.</p>
         
-        <div class="relative w-full aspect-[3/4] bg-pln-soft rounded-xl border-2 border-dashed border-pln-main flex flex-col items-center justify-center overflow-hidden mb-4 hover:bg-teal-50 transition-colors">
-          <input type="file" id="file-upload-SB" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" onchange="handleFile(this, 'SB')">
-          <div id="init-ui-SB" class="flex flex-col items-center pointer-events-none">
-            <div class="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mb-3 text-pln-main">
-              <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+        <div class="relative w-full aspect-[3/4] bg-white rounded-xl border-2 border-dashed border-gray-300 p-6 flex flex-col items-center justify-center mb-4">
+          <div id="init-ui-SB" class="w-full flex flex-col gap-4 z-20">
+            <button type="button" onclick="document.getElementById('camera-SB').click()" class="w-full py-4 bg-[#2563eb] text-white font-bold rounded-lg shadow-sm flex items-center justify-center gap-2 transition-transform active:scale-95">
+              📸 AMBIL FOTO
+            </button>
+            <div class="flex items-center w-full my-1">
+              <div class="flex-grow border-t border-gray-200"></div>
+              <span class="px-3 text-xs text-gray-400 font-medium">ATAU</span>
+              <div class="flex-grow border-t border-gray-200"></div>
             </div>
-            <span class="font-bold text-pln-dark">Ambil Foto SB</span>
+            <button type="button" onclick="document.getElementById('gallery-SB').click()" class="w-full py-4 bg-[#334155] text-white font-bold rounded-lg shadow-sm flex items-center justify-center gap-2 transition-transform active:scale-95">
+              📁 GALERI
+            </button>
           </div>
-          <img id="preview-SB" class="absolute inset-0 w-full h-full object-cover hidden z-10">
+          <img id="preview-SB" class="absolute inset-0 w-full h-full object-cover rounded-xl hidden z-30">
+          <input type="file" id="camera-SB" accept="image/*" capture="environment" class="hidden" onchange="handleFile(this, 'SB')">
+          <input type="file" id="gallery-SB" accept="image/*" class="hidden" onchange="handleFile(this, 'SB')">
         </div>
 
         <div class="flex gap-3 mt-6">
@@ -199,6 +215,8 @@
     <p class="text-pln-dark font-bold animate-pulse">Menyinkronkan data izin kerja...</p>
   </div>
   
+  <div id="qr-reader" style="width:300px; height:300px; position:absolute; top:-9999px;"></div>
+
   <script src="script.js"></script>
 </body>
 </html>
