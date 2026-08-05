@@ -3,7 +3,10 @@ export async function onRequestPost(context) {
     const requestData = await context.request.json();
     const response = await fetch(context.env.N8N_WEBHOOK_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': context.env.API_KEY
+      },
       body: JSON.stringify(requestData)
     });
     const responseData = await response.json(); 
@@ -12,9 +15,6 @@ export async function onRequestPost(context) {
       status: response.status
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: "Internal Server Error" }), {
-      headers: { 'Content-Type': 'application/json' },
-      status: 500
-    });
+    return new Response(JSON.stringify({ error: "Internal Server Error" }), { status: 500 });
   }
 }

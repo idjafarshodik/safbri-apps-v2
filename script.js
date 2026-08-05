@@ -1,4 +1,4 @@
-let currentStep = 1;
+let currentStep = 0;
 const titles = ['Foto Working Permit', 'Foto Safety Briefing', 'Data Pekerjaan', 'Data Pelaksana'];
 const images = { WP: null, SB: null };
 let qrScanFails = 0;
