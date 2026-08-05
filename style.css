@@ -125,3 +125,13 @@ input[type="number"]::-webkit-inner-spin-button {
 .animate-pop {
   animation: popIn 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
 }
+
+@keyframes scan {
+  0% { top: 0; }
+  50% { top: 100%; }
+  100% { top: 0; }
+}
+
+.animate-scan {
+  animation: scan 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}

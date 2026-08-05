@@ -5,6 +5,8 @@ let qrScanFails = 0;
 let extractionPromise = null;
 let extractedData = null;
 let abortController = null;
+let videoStream = null;
+let scanInterval = null;
 
 document.querySelectorAll('input[type="text"], input[type="number"]').forEach(input => {
   input.addEventListener('input', (e) => {
@@ -198,119 +200,172 @@ const triggerScanFail = () => {
     }
 };
 
-const resizeAndScanImage = (file, type) => {
+const stopCamera = () => {
+    if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+        videoStream = null;
+    }
+    if (scanInterval) {
+        clearInterval(scanInterval);
+        scanInterval = null;
+    }
+};
+
+const startCamera = async () => {
+    document.getElementById('init-ui-WP').classList.add('hidden');
+    const video = document.getElementById('video-WP');
+    const overlay = document.getElementById('scan-overlay');
+    
+    try {
+        videoStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment" }
+        });
+        video.srcObject = videoStream;
+        video.setAttribute("playsinline", true);
+        video.classList.remove('hidden');
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+        video.play();
+        
+        scanInterval = setInterval(() => scanVideoFrame(video), 400);
+    } catch (err) {
+        showToast("Gagal akses kamera", true);
+        cancelCamera();
+    }
+};
+
+const cancelCamera = () => {
+    stopCamera();
+    document.getElementById('video-WP').classList.add('hidden');
+    document.getElementById('scan-overlay').classList.add('hidden');
+    document.getElementById('scan-overlay').classList.remove('flex');
+    document.getElementById('init-ui-WP').classList.remove('hidden');
+    triggerScanFail();
+};
+
+const processQRText = (decodedText, canvas, type) => {
+    if (type === 'WP') {
+        stopCamera();
+        document.getElementById('video-WP').classList.add('hidden');
+        document.getElementById('scan-overlay').classList.add('hidden');
+        document.getElementById('scan-overlay').classList.remove('flex');
+    }
+    
+    const base64Compressed = canvas.toDataURL('image/jpeg', 0.85);
+    localStorage.setItem(`safbri_img_${type}`, base64Compressed);
+    images[type] = new Image();
+    images[type].src = base64Compressed;
+    
+    const preview = document.getElementById(`preview-${type}`);
+    preview.src = base64Compressed;
+    preview.classList.remove('hidden');
+    document.getElementById(`retake-btn-${type}`).classList.remove('hidden');
+    
+    document.getElementById('qr-error-msg').classList.add('hidden');
+    document.getElementById('manual-override-container').classList.add('hidden');
+    document.getElementById('btn-next-1').disabled = false;
+    
+    extractedData = null;
+    extractionPromise = fetchExtractionData(decodedText);
+    nextStep(2);
+};
+
+const scanVideoFrame = async (video) => {
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        let decodedText = null;
+        
+        if ('BarcodeDetector' in window) {
+            try {
+                const detector = new BarcodeDetector({ formats: ['qr_code'] });
+                const barcodes = await detector.detect(canvas);
+                if (barcodes.length > 0) decodedText = barcodes[0].rawValue;
+            } catch (e) {}
+        }
+        
+        if (!decodedText && window.jsQR) {
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, canvas.width, canvas.height, { inversionAttempts: "dontInvert" });
+            if (code) decodedText = code.data;
+        }
+        
+        if (decodedText && decodedText.includes('hsse.pln.co.id')) {
+            processQRText(decodedText, canvas, 'WP');
+        }
+    }
+};
+
+const handleFileWP = (input) => {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    input.value = '';
+    
+    document.getElementById('init-ui-WP').classList.add('hidden');
+    
     const reader = new FileReader();
     reader.onload = (e) => {
         const img = new Image();
         img.onload = async () => {
-            const saveMax = 1000;
+            const saveMax = 1200;
             let sW = img.width;
             let sH = img.height;
-            
             if (sW > sH) {
                 if (sW > saveMax) { sH = Math.round(sH * saveMax / sW); sW = saveMax; }
             } else {
                 if (sH > saveMax) { sW = Math.round(sW * saveMax / sH); sH = saveMax; }
             }
             
-            const saveCanvas = document.createElement('canvas');
-            saveCanvas.width = sW;
-            saveCanvas.height = sH;
-            const saveCtx = saveCanvas.getContext('2d');
-            saveCtx.drawImage(img, 0, 0, sW, sH);
+            const canvas = document.createElement('canvas');
+            canvas.width = sW;
+            canvas.height = sH;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(img, 0, 0, sW, sH);
             
-            const base64Compressed = saveCanvas.toDataURL('image/jpeg', 0.85);
-            localStorage.setItem(`safbri_img_${type}`, base64Compressed);
+            let decodedText = null;
             
-            images[type] = new Image();
-            images[type].src = base64Compressed;
+            if ('BarcodeDetector' in window) {
+                try {
+                    const detector = new BarcodeDetector({ formats: ['qr_code'] });
+                    const barcodes = await detector.detect(canvas);
+                    if (barcodes.length > 0) decodedText = barcodes[0].rawValue;
+                } catch (err) {}
+            }
             
-            document.getElementById(`init-ui-${type}`).classList.add('hidden');
-            const preview = document.getElementById(`preview-${type}`);
-            preview.src = base64Compressed;
-            preview.classList.remove('hidden');
-            document.getElementById(`retake-btn-${type}`).classList.remove('hidden');
-
-            if (type === 'WP') {
-                let decodedText = null;
-
-                const cropW = img.width;
-                const cropH = Math.floor(img.height * 0.45);
-                const cropY = img.height - cropH;
-
-                const cropCanvas = document.createElement('canvas');
-                cropCanvas.width = cropW;
-                cropCanvas.height = cropH;
-                const cropCtx = cropCanvas.getContext('2d', { willReadFrequently: true });
-                cropCtx.drawImage(img, 0, cropY, cropW, cropH, 0, 0, cropW, cropH);
-
-                if ('BarcodeDetector' in window) {
-                    try {
-                        const detector = new BarcodeDetector({ formats: ['qr_code'] });
-                        const barcodes = await detector.detect(cropCanvas);
-                        if (barcodes.length > 0) {
-                            decodedText = barcodes[0].rawValue;
-                        }
-                    } catch (err) {}
+            if (!decodedText && window.jsQR) {
+                const imgData = ctx.getImageData(0, 0, sW, sH);
+                let code = jsQR(imgData.data, sW, sH, { inversionAttempts: "attemptBoth" });
+                
+                if (!code) {
+                    const pixels = imgData.data;
+                    for (let i = 0; i < pixels.length; i += 4) {
+                        let l = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+                        let c = l > 105 ? 255 : 0;
+                        pixels[i] = c; pixels[i + 1] = c; pixels[i + 2] = c;
+                    }
+                    code = jsQR(pixels, sW, sH, { inversionAttempts: "attemptBoth" });
                 }
-
-                if (!decodedText && window.Html5Qrcode) {
-                    try {
-                        const blob = await new Promise(res => cropCanvas.toBlob(res, 'image/jpeg'));
-                        const croppedFile = new File([blob], "crop.jpg", { type: "image/jpeg" });
-                        const html5QrCode = new Html5Qrcode("qr-reader-hidden");
-                        decodedText = await html5QrCode.scanFile(croppedFile, false);
-                    } catch (err) {}
-                }
-
-                if (!decodedText && window.jsQR) {
-                    try {
-                        const scanMax = 1200;
-                        let scW = cropW;
-                        let scH = cropH;
-                        if (scW > scH) {
-                            if (scW > scanMax) { scH = Math.round(scH * scanMax / scW); scW = scanMax; }
-                        } else {
-                            if (scH > scanMax) { scW = Math.round(scW * scanMax / scH); scH = scanMax; }
-                        }
-
-                        const scCanvas = document.createElement('canvas');
-                        scCanvas.width = scW;
-                        scCanvas.height = scH;
-                        const scCtx = scCanvas.getContext('2d', { willReadFrequently: true });
-                        scCtx.drawImage(cropCanvas, 0, 0, scW, scH);
-                        
-                        const imageData = scCtx.getImageData(0, 0, scW, scH);
-                        const pixels = imageData.data;
-
-                        for (let i = 0; i < pixels.length; i += 4) {
-                            let l = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
-                            let c = l > 105 ? 255 : 0;
-                            pixels[i] = c;
-                            pixels[i + 1] = c;
-                            pixels[i + 2] = c;
-                        }
-
-                        const code = jsQR(pixels, scW, scH, { inversionAttempts: "attemptBoth" });
-                        if (code) {
-                            decodedText = code.data;
-                        }
-                    } catch (err) {}
-                }
-
-                if (decodedText && decodedText.includes('hsse.pln.co.id')) {
-                    document.getElementById('qr-error-msg').classList.add('hidden');
-                    document.getElementById('manual-override-container').classList.add('hidden');
-                    document.getElementById('btn-next-1').disabled = false;
-                    
-                    extractedData = null;
-                    extractionPromise = fetchExtractionData(decodedText);
-                    nextStep(2);
-                } else {
-                    triggerScanFail();
-                }
-            } else if (type === 'SB') {
-                document.getElementById('btn-next-2').disabled = false;
+                if (code) decodedText = code.data;
+            }
+            
+            if (decodedText && decodedText.includes('hsse.pln.co.id')) {
+                processQRText(decodedText, canvas, 'WP');
+            } else {
+                const base64Compressed = canvas.toDataURL('image/jpeg', 0.85);
+                localStorage.setItem(`safbri_img_WP`, base64Compressed);
+                images.WP = new Image();
+                images.WP.src = base64Compressed;
+                
+                const preview = document.getElementById(`preview-WP`);
+                preview.src = base64Compressed;
+                preview.classList.remove('hidden');
+                document.getElementById(`retake-btn-WP`).classList.remove('hidden');
+                
+                triggerScanFail();
             }
         };
         img.src = e.target.result;
@@ -318,11 +373,47 @@ const resizeAndScanImage = (file, type) => {
     reader.readAsDataURL(file);
 };
 
-const handleFile = (input, type) => {
-  if (input.files && input.files[0]) {
-      resizeAndScanImage(input.files[0], type);
-  }
-  input.value = '';
+const handleFileSB = (input) => {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    input.value = '';
+    
+    document.getElementById('init-ui-SB').classList.add('hidden');
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+            const saveMax = 1200;
+            let sW = img.width;
+            let sH = img.height;
+            if (sW > sH) {
+                if (sW > saveMax) { sH = Math.round(sH * saveMax / sW); sW = saveMax; }
+            } else {
+                if (sH > saveMax) { sW = Math.round(sW * saveMax / sH); sH = saveMax; }
+            }
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = sW;
+            canvas.height = sH;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, sW, sH);
+            
+            const base64Compressed = canvas.toDataURL('image/jpeg', 0.85);
+            localStorage.setItem(`safbri_img_SB`, base64Compressed);
+            images.SB = new Image();
+            images.SB.src = base64Compressed;
+            
+            const preview = document.getElementById(`preview-SB`);
+            preview.src = base64Compressed;
+            preview.classList.remove('hidden');
+            document.getElementById('retake-btn-SB').classList.remove('hidden');
+            
+            document.getElementById('btn-next-2').disabled = false;
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
 };
 
 const resetMedia = (type) => {
@@ -333,6 +424,11 @@ const resetMedia = (type) => {
   document.getElementById(`init-ui-${type}`).classList.remove('hidden');
   
   if (type === 'WP') {
+      stopCamera();
+      document.getElementById('video-WP').classList.add('hidden');
+      document.getElementById('scan-overlay').classList.add('hidden');
+      document.getElementById('scan-overlay').classList.remove('flex');
+      
       document.getElementById('btn-next-1').disabled = true;
       document.getElementById('ignore-qr').checked = false;
   }

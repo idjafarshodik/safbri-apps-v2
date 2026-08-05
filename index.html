@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Safety Briefing ULTG Sampang</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,7 +17,8 @@
         extend: {
           colors: { pln: { main: '#14a2ba', dark: '#125d72', bg: '#f4f7f8', soft: '#eaf5f8', border: '#e1e8eb', text: '#16232b', muted: '#5b7280' } },
           fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] },
-          boxShadow: { 'kahoot': '0 6px 0 rgba(0,0,0,0.1)' }
+          boxShadow: { 'kahoot': '0 6px 0 rgba(0,0,0,0.1)' },
+          zIndex: { '15': '15' }
         }
       }
     }
@@ -31,7 +32,7 @@
   <div class="w-full max-w-md mb-3 flex flex-col items-center">
     <div class="text-center mb-3 w-full px-2">
         <h1 class="text-2xl font-extrabold text-pln-dark mb-1">SAFBRI V2</h1>
-        <p class="text-sm text-pln-muted font-semibold">ULTG Sampang <span class="text-xs font-normal text-gray-400 block mt-1">v.2.09 - The Sniper Algorithm (Smart Crop + Multi-Tier Scan)</span></p>
+        <p class="text-sm text-pln-muted font-semibold">ULTG Sampang <span class="text-xs font-normal text-gray-400 block mt-1">v.2.10 - WebRTC Live Scanner + File Uploader</span></p>
     </div>
   </div>
 
@@ -59,12 +60,23 @@
 
       <div id="step-1" class="step-card">
         <h2 class="text-xl font-extrabold mb-2 text-pln-dark">Foto Working Permit</h2>
-        <p class="text-sm text-pln-muted mb-4">Pastikan dokumen difoto tegak (Portrait). Arahkan fokus cukup pada tabel data dan area QR Code agar terbaca optimal.</p>
+        <p class="text-sm text-pln-muted mb-4">Arahkan kamera ke tabel data dan area QR Code agar sistem dapat memindai secara otomatis.</p>
         
-        <div class="relative w-full aspect-[4/3] sm:aspect-[3/4] bg-pln-bg rounded-xl border-2 border-dashed border-gray-300 p-6 flex flex-col items-center justify-center mb-4 overflow-hidden">
-          <div id="init-ui-WP" class="w-full flex flex-col gap-4 z-20">
-            <button type="button" onclick="document.getElementById('camera-WP').click()" class="w-full py-3.5 bg-[#2563eb] text-white font-bold rounded-lg shadow-[0_4px_0_#1d4ed8] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2">
-              📸 AMBIL FOTO
+        <div class="relative w-full aspect-[4/3] sm:aspect-[3/4] bg-pln-bg rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center mb-4 overflow-hidden">
+          
+          <video id="video-WP" autoplay playsinline class="absolute inset-0 w-full h-full object-cover hidden z-10 bg-black"></video>
+          
+          <div id="scan-overlay" class="absolute inset-0 z-15 hidden flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
+             <div class="w-48 h-48 sm:w-56 sm:h-56 border-2 border-green-400 rounded-xl relative overflow-hidden">
+                <div class="absolute left-0 w-full h-1 bg-green-400 shadow-[0_0_12px_#4ade80] animate-scan"></div>
+             </div>
+             <p class="text-white font-bold mt-4 animate-pulse tracking-wide">Mencari QR Code...</p>
+             <button type="button" onclick="cancelCamera()" class="mt-6 px-6 py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-full shadow-lg transition-colors">Batal</button>
+          </div>
+
+          <div id="init-ui-WP" class="w-full h-full p-6 flex flex-col items-center justify-center gap-4 z-20">
+            <button type="button" onclick="startCamera()" class="w-full py-3.5 bg-[#2563eb] text-white font-bold rounded-lg shadow-[0_4px_0_#1d4ed8] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2">
+              📷 SCAN KAMERA LANGSUNG
             </button>
             <div class="flex items-center w-full my-1">
               <div class="flex-grow border-t border-gray-300"></div>
@@ -72,13 +84,13 @@
               <div class="flex-grow border-t border-gray-300"></div>
             </div>
             <button type="button" onclick="document.getElementById('gallery-WP').click()" class="w-full py-3.5 bg-[#334155] text-white font-bold rounded-lg shadow-[0_4px_0_#1e293b] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2">
-              📁 GALERI
+              📁 PILIH DARI GALERI
             </button>
           </div>
-          <img id="preview-WP" class="absolute inset-0 w-full h-full object-cover hidden z-10">
+          
+          <img id="preview-WP" class="absolute inset-0 w-full h-full object-cover hidden z-30">
           <button type="button" id="retake-btn-WP" onclick="resetMedia('WP')" class="absolute top-3 right-3 bg-red-500 text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-md hidden z-40 hover:bg-red-600 transition-colors">Ulangi</button>
-          <input type="file" id="camera-WP" accept="image/*" capture="environment" class="hidden" onchange="handleFile(this, 'WP')">
-          <input type="file" id="gallery-WP" accept="image/*" class="hidden" onchange="handleFile(this, 'WP')">
+          <input type="file" id="gallery-WP" accept="image/*" class="hidden" onchange="handleFileWP(this)">
         </div>
 
         <div id="qr-error-msg" class="text-red-500 text-sm font-bold mt-2 text-center hidden transition-all duration-300">
@@ -118,8 +130,8 @@
           </div>
           <img id="preview-SB" class="absolute inset-0 w-full h-full object-cover hidden z-10">
           <button type="button" id="retake-btn-SB" onclick="resetMedia('SB')" class="absolute top-3 right-3 bg-red-500 text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-md hidden z-40 hover:bg-red-600 transition-colors">Ulangi</button>
-          <input type="file" id="camera-SB" accept="image/*" capture="environment" class="hidden" onchange="handleFile(this, 'SB')">
-          <input type="file" id="gallery-SB" accept="image/*" class="hidden" onchange="handleFile(this, 'SB')">
+          <input type="file" id="camera-SB" accept="image/*" capture="environment" class="hidden" onchange="handleFileSB(this)">
+          <input type="file" id="gallery-SB" accept="image/*" class="hidden" onchange="handleFileSB(this)">
         </div>
 
         <div class="flex gap-3 mt-6">
@@ -215,8 +227,6 @@
     <p class="text-pln-dark font-bold animate-pulse">Menyinkronkan data izin kerja...</p>
   </div>
 
-  <div id="qr-reader-hidden" style="display: none;"></div>
-  
   <script src="script.js"></script>
 </body>
 </html>
