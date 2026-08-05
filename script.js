@@ -1,11 +1,10 @@
-let currentStep = 0;
+let currentStep = 1;
 const titles = ['Foto Working Permit', 'Foto Safety Briefing', 'Data Pekerjaan', 'Data Pelaksana'];
 const images = { WP: null, SB: null };
 let qrScanFails = 0;
 let extractionPromise = null;
 let extractedData = null;
 let abortController = null;
-let html5QrCode;
 
 document.querySelectorAll('input[type="text"], input[type="number"]').forEach(input => {
   input.addEventListener('input', (e) => {
@@ -22,8 +21,6 @@ flatpickr("#tanggal_pekerjaan", {
 });
 
 window.addEventListener('DOMContentLoaded', () => {
-  html5QrCode = new Html5Qrcode("qr-reader");
-
   ['nomor_wp', 'nama_pekerjaan', 'tanggal_pekerjaan', 'lokasi', 'tim_pelaksana', 'pengawas_k3', 'pengawas_pekerjaan', 'jumlah_pelaksana'].forEach(id => {
     const val = localStorage.getItem(`safbri_${id}`);
     if (val && document.getElementById(id)) document.getElementById(id).value = val;
@@ -173,7 +170,7 @@ const nextStep = async (targetStep) => {
                 });
                 showToast("Data berhasil diekstrak.");
             } else {
-                showToast("Sinyal tidak stabil, silakan lengkapi manual.", true);
+                showToast("Sinyal lambat, silakan lengkapi manual.", true);
             }
         }
     }
@@ -201,49 +198,27 @@ const triggerScanFail = () => {
 };
 
 const resizeAndScanImage = (file, type) => {
-    if (type === 'WP') {
-        html5QrCode.scanFile(file, false)
-        .then(decodedText => {
-            if (decodedText.includes('hsse.pln.co.id')) {
-                document.getElementById('qr-error-msg').classList.add('hidden');
-                document.getElementById('manual-override-container').classList.add('hidden');
-                document.getElementById('btn-next-1').disabled = false;
-                extractedData = null;
-                extractionPromise = fetchExtractionData(decodedText);
-                nextStep(2);
-            } else {
-                triggerScanFail();
-            }
-        })
-        .catch(err => {
-            triggerScanFail();
-        });
-    } else if (type === 'SB') {
-        document.getElementById('btn-next-2').disabled = false;
-    }
-
     const reader = new FileReader();
     reader.onload = (e) => {
         const img = new Image();
-        img.onload = () => {
-            const maxW = 1000;
-            const maxH = 1000;
-            let width = img.width;
-            let height = img.height;
+        img.onload = async () => {
+            const saveMax = 1000;
+            let sW = img.width;
+            let sH = img.height;
             
-            if (width > height) {
-                if (width > maxW) { height = Math.round((height * maxW) / width); width = maxW; }
+            if (sW > sH) {
+                if (sW > saveMax) { sH = Math.round(sH * saveMax / sW); sW = saveMax; }
             } else {
-                if (height > maxH) { width = Math.round((width * maxH) / height); height = maxH; }
+                if (sH > saveMax) { sW = Math.round(sW * saveMax / sH); sH = saveMax; }
             }
             
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
+            const saveCanvas = document.createElement('canvas');
+            saveCanvas.width = sW;
+            saveCanvas.height = sH;
+            const saveCtx = saveCanvas.getContext('2d');
+            saveCtx.drawImage(img, 0, 0, sW, sH);
             
-            const base64Compressed = canvas.toDataURL('image/jpeg', 0.85);
+            const base64Compressed = saveCanvas.toDataURL('image/jpeg', 0.85);
             localStorage.setItem(`safbri_img_${type}`, base64Compressed);
             
             images[type] = new Image();
@@ -254,6 +229,67 @@ const resizeAndScanImage = (file, type) => {
             preview.src = base64Compressed;
             preview.classList.remove('hidden');
             document.getElementById(`retake-btn-${type}`).classList.remove('hidden');
+
+            if (type === 'WP') {
+                let decodedText = null;
+
+                if ('BarcodeDetector' in window) {
+                    try {
+                        const detector = new BarcodeDetector({ formats: ['qr_code'] });
+                        const barcodes = await detector.detect(img);
+                        if (barcodes.length > 0) {
+                            decodedText = barcodes[0].rawValue;
+                        }
+                    } catch (err) {}
+                }
+
+                if (!decodedText) {
+                    const scanMax = 2000;
+                    let scW = img.width;
+                    let scH = img.height;
+                    if (scW > scH) {
+                        if (scW > scanMax) { scH = Math.round(scH * scanMax / scW); scW = scanMax; }
+                    } else {
+                        if (scH > scanMax) { scW = Math.round(scW * scanMax / scH); scH = scanMax; }
+                    }
+
+                    const scanCanvas = document.createElement('canvas');
+                    scanCanvas.width = scW;
+                    scanCanvas.height = scH;
+                    const scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+                    scanCtx.drawImage(img, 0, 0, scW, scH);
+                    
+                    const imageData = scanCtx.getImageData(0, 0, scW, scH);
+                    const pixels = imageData.data;
+
+                    for (let i = 0; i < pixels.length; i += 4) {
+                        let l = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+                        let c = l > 110 ? 255 : 0;
+                        pixels[i] = c;
+                        pixels[i + 1] = c;
+                        pixels[i + 2] = c;
+                    }
+
+                    const code = jsQR(pixels, scW, scH, { inversionAttempts: "attemptBoth" });
+                    if (code) {
+                        decodedText = code.data;
+                    }
+                }
+
+                if (decodedText && decodedText.includes('hsse.pln.co.id')) {
+                    document.getElementById('qr-error-msg').classList.add('hidden');
+                    document.getElementById('manual-override-container').classList.add('hidden');
+                    document.getElementById('btn-next-1').disabled = false;
+                    
+                    extractedData = null;
+                    extractionPromise = fetchExtractionData(decodedText);
+                    nextStep(2);
+                } else {
+                    triggerScanFail();
+                }
+            } else if (type === 'SB') {
+                document.getElementById('btn-next-2').disabled = false;
+            }
         };
         img.src = e.target.result;
     };
