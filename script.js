@@ -245,36 +245,10 @@ const resizeAndScanImage = (file, type) => {
                 }
 
                 if (!decodedText) {
-                    const scanMax = 2000;
-                    let scW = img.width;
-                    let scH = img.height;
-                    if (scW > scH) {
-                        if (scW > scanMax) { scH = Math.round(scH * scanMax / scW); scW = scanMax; }
-                    } else {
-                        if (scH > scanMax) { scW = Math.round(scW * scanMax / scH); scH = scanMax; }
-                    }
-
-                    const scanCanvas = document.createElement('canvas');
-                    scanCanvas.width = scW;
-                    scanCanvas.height = scH;
-                    const scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
-                    scanCtx.drawImage(img, 0, 0, scW, scH);
-                    
-                    const imageData = scanCtx.getImageData(0, 0, scW, scH);
-                    const pixels = imageData.data;
-
-                    for (let i = 0; i < pixels.length; i += 4) {
-                        let l = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
-                        let c = l > 110 ? 255 : 0;
-                        pixels[i] = c;
-                        pixels[i + 1] = c;
-                        pixels[i + 2] = c;
-                    }
-
-                    const code = jsQR(pixels, scW, scH, { inversionAttempts: "attemptBoth" });
-                    if (code) {
-                        decodedText = code.data;
-                    }
+                    try {
+                        const html5QrCode = new Html5Qrcode("qr-reader-hidden");
+                        decodedText = await html5QrCode.scanFile(file, false);
+                    } catch (err) {}
                 }
 
                 if (decodedText && decodedText.includes('hsse.pln.co.id')) {
