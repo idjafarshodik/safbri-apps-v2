@@ -234,20 +234,67 @@ const resizeAndScanImage = (file, type) => {
             if (type === 'WP') {
                 let decodedText = null;
 
+                const cropW = img.width;
+                const cropH = Math.floor(img.height * 0.45);
+                const cropY = img.height - cropH;
+
+                const cropCanvas = document.createElement('canvas');
+                cropCanvas.width = cropW;
+                cropCanvas.height = cropH;
+                const cropCtx = cropCanvas.getContext('2d', { willReadFrequently: true });
+                cropCtx.drawImage(img, 0, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
                 if ('BarcodeDetector' in window) {
                     try {
                         const detector = new BarcodeDetector({ formats: ['qr_code'] });
-                        const barcodes = await detector.detect(img);
+                        const barcodes = await detector.detect(cropCanvas);
                         if (barcodes.length > 0) {
                             decodedText = barcodes[0].rawValue;
                         }
                     } catch (err) {}
                 }
 
-                if (!decodedText) {
+                if (!decodedText && window.Html5Qrcode) {
                     try {
+                        const blob = await new Promise(res => cropCanvas.toBlob(res, 'image/jpeg'));
+                        const croppedFile = new File([blob], "crop.jpg", { type: "image/jpeg" });
                         const html5QrCode = new Html5Qrcode("qr-reader-hidden");
-                        decodedText = await html5QrCode.scanFile(file, false);
+                        decodedText = await html5QrCode.scanFile(croppedFile, false);
+                    } catch (err) {}
+                }
+
+                if (!decodedText && window.jsQR) {
+                    try {
+                        const scanMax = 1200;
+                        let scW = cropW;
+                        let scH = cropH;
+                        if (scW > scH) {
+                            if (scW > scanMax) { scH = Math.round(scH * scanMax / scW); scW = scanMax; }
+                        } else {
+                            if (scH > scanMax) { scW = Math.round(scW * scanMax / scH); scH = scanMax; }
+                        }
+
+                        const scCanvas = document.createElement('canvas');
+                        scCanvas.width = scW;
+                        scCanvas.height = scH;
+                        const scCtx = scCanvas.getContext('2d', { willReadFrequently: true });
+                        scCtx.drawImage(cropCanvas, 0, 0, scW, scH);
+                        
+                        const imageData = scCtx.getImageData(0, 0, scW, scH);
+                        const pixels = imageData.data;
+
+                        for (let i = 0; i < pixels.length; i += 4) {
+                            let l = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+                            let c = l > 105 ? 255 : 0;
+                            pixels[i] = c;
+                            pixels[i + 1] = c;
+                            pixels[i + 2] = c;
+                        }
+
+                        const code = jsQR(pixels, scW, scH, { inversionAttempts: "attemptBoth" });
+                        if (code) {
+                            decodedText = code.data;
+                        }
                     } catch (err) {}
                 }
 
