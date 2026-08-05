@@ -5,8 +5,6 @@ let qrScanFails = 0;
 let extractionPromise = null;
 let extractedData = null;
 let abortController = null;
-let videoStream = null;
-let scanInterval = null;
 
 document.querySelectorAll('input[type="text"], input[type="number"]').forEach(input => {
   input.addEventListener('input', (e) => {
@@ -200,172 +198,102 @@ const triggerScanFail = () => {
     }
 };
 
-const stopCamera = () => {
-    if (videoStream) {
-        videoStream.getTracks().forEach(track => track.stop());
-        videoStream = null;
-    }
-    if (scanInterval) {
-        clearInterval(scanInterval);
-        scanInterval = null;
-    }
-};
-
-const startCamera = async () => {
-    document.getElementById('init-ui-WP').classList.add('hidden');
-    const video = document.getElementById('video-WP');
-    const overlay = document.getElementById('scan-overlay');
-    
-    try {
-        videoStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment" }
-        });
-        video.srcObject = videoStream;
-        video.setAttribute("playsinline", true);
-        video.classList.remove('hidden');
-        overlay.classList.remove('hidden');
-        overlay.classList.add('flex');
-        video.play();
-        
-        scanInterval = setInterval(() => scanVideoFrame(video), 400);
-    } catch (err) {
-        showToast("Gagal akses kamera", true);
-        cancelCamera();
-    }
-};
-
-const cancelCamera = () => {
-    stopCamera();
-    document.getElementById('video-WP').classList.add('hidden');
-    document.getElementById('scan-overlay').classList.add('hidden');
-    document.getElementById('scan-overlay').classList.remove('flex');
-    document.getElementById('init-ui-WP').classList.remove('hidden');
-    triggerScanFail();
-};
-
-const processQRText = (decodedText, canvas, type) => {
-    if (type === 'WP') {
-        stopCamera();
-        document.getElementById('video-WP').classList.add('hidden');
-        document.getElementById('scan-overlay').classList.add('hidden');
-        document.getElementById('scan-overlay').classList.remove('flex');
-    }
-    
-    const base64Compressed = canvas.toDataURL('image/jpeg', 0.85);
-    localStorage.setItem(`safbri_img_${type}`, base64Compressed);
-    images[type] = new Image();
-    images[type].src = base64Compressed;
-    
-    const preview = document.getElementById(`preview-${type}`);
-    preview.src = base64Compressed;
-    preview.classList.remove('hidden');
-    document.getElementById(`retake-btn-${type}`).classList.remove('hidden');
-    
-    document.getElementById('qr-error-msg').classList.add('hidden');
-    document.getElementById('manual-override-container').classList.add('hidden');
-    document.getElementById('btn-next-1').disabled = false;
-    
-    extractedData = null;
-    extractionPromise = fetchExtractionData(decodedText);
-    nextStep(2);
-};
-
-const scanVideoFrame = async (video) => {
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
-        let decodedText = null;
-        
-        if ('BarcodeDetector' in window) {
-            try {
-                const detector = new BarcodeDetector({ formats: ['qr_code'] });
-                const barcodes = await detector.detect(canvas);
-                if (barcodes.length > 0) decodedText = barcodes[0].rawValue;
-            } catch (e) {}
-        }
-        
-        if (!decodedText && window.jsQR) {
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, canvas.width, canvas.height, { inversionAttempts: "dontInvert" });
-            if (code) decodedText = code.data;
-        }
-        
-        if (decodedText && decodedText.includes('hsse.pln.co.id')) {
-            processQRText(decodedText, canvas, 'WP');
-        }
-    }
-};
-
-const handleFileWP = (input) => {
-    if (!input.files || !input.files[0]) return;
-    const file = input.files[0];
-    input.value = '';
-    
-    document.getElementById('init-ui-WP').classList.add('hidden');
-    
+const resizeAndScanImage = (file, type) => {
     const reader = new FileReader();
     reader.onload = (e) => {
         const img = new Image();
         img.onload = async () => {
-            const saveMax = 1200;
-            let sW = img.width;
-            let sH = img.height;
-            if (sW > sH) {
-                if (sW > saveMax) { sH = Math.round(sH * saveMax / sW); sW = saveMax; }
-            } else {
-                if (sH > saveMax) { sW = Math.round(sW * saveMax / sH); sH = saveMax; }
-            }
-            
-            const canvas = document.createElement('canvas');
-            canvas.width = sW;
-            canvas.height = sH;
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            ctx.drawImage(img, 0, 0, sW, sH);
-            
             let decodedText = null;
-            
-            if ('BarcodeDetector' in window) {
-                try {
-                    const detector = new BarcodeDetector({ formats: ['qr_code'] });
-                    const barcodes = await detector.detect(canvas);
-                    if (barcodes.length > 0) decodedText = barcodes[0].rawValue;
-                } catch (err) {}
-            }
-            
-            if (!decodedText && window.jsQR) {
-                const imgData = ctx.getImageData(0, 0, sW, sH);
-                let code = jsQR(imgData.data, sW, sH, { inversionAttempts: "attemptBoth" });
-                
-                if (!code) {
-                    const pixels = imgData.data;
-                    for (let i = 0; i < pixels.length; i += 4) {
-                        let l = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
-                        let c = l > 105 ? 255 : 0;
-                        pixels[i] = c; pixels[i + 1] = c; pixels[i + 2] = c;
-                    }
-                    code = jsQR(pixels, sW, sH, { inversionAttempts: "attemptBoth" });
+
+            if (type === 'WP') {
+                if ('BarcodeDetector' in window) {
+                    try {
+                        const detector = new BarcodeDetector({ formats: ['qr_code'] });
+                        const barcodes = await detector.detect(img);
+                        if (barcodes.length > 0) decodedText = barcodes[0].rawValue;
+                    } catch(err) {}
                 }
-                if (code) decodedText = code.data;
+
+                if (!decodedText && window.jsQR) {
+                    const scanRegion = (startY, heightFactor) => {
+                        const rH = Math.floor(img.height * heightFactor);
+                        const rY = Math.floor(img.height * startY);
+                        const maxW = 1200;
+                        let sW = img.width;
+                        let sH = rH;
+                        
+                        if (sW > maxW) {
+                            sH = Math.round(sH * maxW / sW);
+                            sW = maxW;
+                        }
+                        
+                        const c = document.createElement('canvas');
+                        c.width = sW;
+                        c.height = sH;
+                        const ctx = c.getContext('2d', { willReadFrequently: true });
+                        ctx.drawImage(img, 0, rY, img.width, rH, 0, 0, sW, sH);
+                        const id = ctx.getImageData(0, 0, sW, sH);
+                        
+                        const code = jsQR(id.data, sW, sH, { inversionAttempts: "dontInvert" });
+                        if (code) return code.data;
+
+                        const px = id.data;
+                        for(let i=0; i<px.length; i+=4) {
+                            let l = (px[i]+px[i+1]+px[i+2])/3;
+                            let v = l > 110 ? 255 : 0;
+                            px[i]=v; px[i+1]=v; px[i+2]=v;
+                        }
+                        const codeBin = jsQR(px, sW, sH, { inversionAttempts: "attemptBoth" });
+                        return codeBin ? codeBin.data : null;
+                    };
+
+                    decodedText = scanRegion(0.45, 0.55);
+                    if (!decodedText) decodedText = scanRegion(0.20, 0.60);
+                    if (!decodedText) decodedText = scanRegion(0, 1.0);
+                }
+            }
+
+            const saveMax = 1000;
+            let fW = img.width;
+            let fH = img.height;
+            if (fW > fH) {
+                if (fW > saveMax) { fH = Math.round(fH * saveMax / fW); fW = saveMax; }
+            } else {
+                if (fH > saveMax) { fW = Math.round(fW * saveMax / fH); fH = saveMax; }
             }
             
-            if (decodedText && decodedText.includes('hsse.pln.co.id')) {
-                processQRText(decodedText, canvas, 'WP');
-            } else {
-                const base64Compressed = canvas.toDataURL('image/jpeg', 0.85);
-                localStorage.setItem(`safbri_img_WP`, base64Compressed);
-                images.WP = new Image();
-                images.WP.src = base64Compressed;
-                
-                const preview = document.getElementById(`preview-WP`);
-                preview.src = base64Compressed;
-                preview.classList.remove('hidden');
-                document.getElementById(`retake-btn-WP`).classList.remove('hidden');
-                
-                triggerScanFail();
+            const finalCanvas = document.createElement('canvas');
+            finalCanvas.width = fW;
+            finalCanvas.height = fH;
+            const finalCtx = finalCanvas.getContext('2d');
+            finalCtx.drawImage(img, 0, 0, fW, fH);
+            
+            const base64Compressed = finalCanvas.toDataURL('image/jpeg', 0.85);
+            localStorage.setItem(`safbri_img_${type}`, base64Compressed);
+            
+            images[type] = new Image();
+            images[type].src = base64Compressed;
+            
+            document.getElementById(`init-ui-${type}`).classList.add('hidden');
+            const preview = document.getElementById(`preview-${type}`);
+            preview.src = base64Compressed;
+            preview.classList.remove('hidden');
+            document.getElementById(`retake-btn-${type}`).classList.remove('hidden');
+
+            if (type === 'WP') {
+                if (decodedText && decodedText.includes('hsse.pln.co.id')) {
+                    document.getElementById('qr-error-msg').classList.add('hidden');
+                    document.getElementById('manual-override-container').classList.add('hidden');
+                    document.getElementById('btn-next-1').disabled = false;
+                    
+                    extractedData = null;
+                    extractionPromise = fetchExtractionData(decodedText);
+                    nextStep(2);
+                } else {
+                    triggerScanFail();
+                }
+            } else if (type === 'SB') {
+                document.getElementById('btn-next-2').disabled = false;
             }
         };
         img.src = e.target.result;
@@ -373,47 +301,11 @@ const handleFileWP = (input) => {
     reader.readAsDataURL(file);
 };
 
-const handleFileSB = (input) => {
-    if (!input.files || !input.files[0]) return;
-    const file = input.files[0];
-    input.value = '';
-    
-    document.getElementById('init-ui-SB').classList.add('hidden');
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-            const saveMax = 1200;
-            let sW = img.width;
-            let sH = img.height;
-            if (sW > sH) {
-                if (sW > saveMax) { sH = Math.round(sH * saveMax / sW); sW = saveMax; }
-            } else {
-                if (sH > saveMax) { sW = Math.round(sW * saveMax / sH); sH = saveMax; }
-            }
-            
-            const canvas = document.createElement('canvas');
-            canvas.width = sW;
-            canvas.height = sH;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, sW, sH);
-            
-            const base64Compressed = canvas.toDataURL('image/jpeg', 0.85);
-            localStorage.setItem(`safbri_img_SB`, base64Compressed);
-            images.SB = new Image();
-            images.SB.src = base64Compressed;
-            
-            const preview = document.getElementById(`preview-SB`);
-            preview.src = base64Compressed;
-            preview.classList.remove('hidden');
-            document.getElementById('retake-btn-SB').classList.remove('hidden');
-            
-            document.getElementById('btn-next-2').disabled = false;
-        };
-        img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
+const handleFile = (input, type) => {
+  if (input.files && input.files[0]) {
+      resizeAndScanImage(input.files[0], type);
+  }
+  input.value = '';
 };
 
 const resetMedia = (type) => {
@@ -424,11 +316,6 @@ const resetMedia = (type) => {
   document.getElementById(`init-ui-${type}`).classList.remove('hidden');
   
   if (type === 'WP') {
-      stopCamera();
-      document.getElementById('video-WP').classList.add('hidden');
-      document.getElementById('scan-overlay').classList.add('hidden');
-      document.getElementById('scan-overlay').classList.remove('flex');
-      
       document.getElementById('btn-next-1').disabled = true;
       document.getElementById('ignore-qr').checked = false;
   }
