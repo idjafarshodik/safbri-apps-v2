@@ -2,7 +2,6 @@ body {
   overflow-x: hidden;
 }
 
-/* Animasi Elegan Background */
 @keyframes subtleBackground {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
@@ -92,9 +91,9 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 
 .check-circle {
-  stroke-dasharray: 166;
-  stroke-dashoffset: 166;
-  stroke-width: 2.5;
+  stroke-dasharray: 283;
+  stroke-dashoffset: 283;
+  stroke-width: 4;
   stroke-miterlimit: 10;
   stroke: #22c55e;
   fill: none;
@@ -105,8 +104,11 @@ input[type="number"]::-webkit-inner-spin-button {
   transform-origin: 50% 50%;
   stroke-dasharray: 48;
   stroke-dashoffset: 48;
-  stroke-width: 3;
+  stroke-width: 4;
   stroke: #22c55e;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.6s forwards;
 }
 

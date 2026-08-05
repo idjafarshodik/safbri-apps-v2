@@ -31,7 +31,7 @@
   <div class="w-full max-w-md mb-3 flex flex-col items-center">
     <div class="text-center mb-3 w-full px-2">
         <h1 class="text-2xl font-extrabold text-pln-dark mb-1">SAFBRI V2</h1>
-        <p class="text-sm text-pln-muted font-semibold">ULTG Sampang <span class="text-xs font-normal text-gray-400 block mt-1">v.2.05 - Fix Logic & Auth Bridge</span></p>
+        <p class="text-sm text-pln-muted font-semibold">ULTG Sampang <span class="text-xs font-normal text-gray-400 block mt-1">v.2.08 - Perbaikan Animasi Centang</span></p>
     </div>
   </div>
 
@@ -58,10 +58,8 @@
       </div>
 
       <div id="step-1" class="step-card">
-        <div class="text-center mb-4">
-          <h2 class="text-xl font-extrabold mb-1 text-pln-dark">Foto Working Permit</h2>
-          <p class="text-sm text-pln-muted">Rekomendasi: <b>Portrait (HP Tegak)</b>.</p>
-        </div>
+        <h2 class="text-xl font-extrabold mb-2 text-pln-dark">Foto Working Permit</h2>
+        <p class="text-sm text-pln-muted mb-4">Pastikan dokumen difoto tegak (Portrait). Arahkan fokus cukup pada tabel data dan area QR Code agar terbaca optimal.</p>
         
         <div class="relative w-full aspect-[4/3] sm:aspect-[3/4] bg-pln-bg rounded-xl border-2 border-dashed border-gray-300 p-6 flex flex-col items-center justify-center mb-4 overflow-hidden">
           <div id="init-ui-WP" class="w-full flex flex-col gap-4 z-20">
@@ -77,22 +75,20 @@
               📁 GALERI
             </button>
           </div>
-          
           <img id="preview-WP" class="absolute inset-0 w-full h-full object-cover hidden z-10">
           <button type="button" id="retake-btn-WP" onclick="resetMedia('WP')" class="absolute top-3 right-3 bg-red-500 text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-md hidden z-40 hover:bg-red-600 transition-colors">Ulangi</button>
-          
           <input type="file" id="camera-WP" accept="image/*" capture="environment" class="hidden" onchange="handleFile(this, 'WP')">
           <input type="file" id="gallery-WP" accept="image/*" class="hidden" onchange="handleFile(this, 'WP')">
         </div>
 
         <div id="qr-error-msg" class="text-red-500 text-sm font-bold mt-2 text-center hidden transition-all duration-300">
-          ⚠️ QR Code tidak terbaca. Pastikan foto fokus dan tidak miring.
+          ⚠️ QR Code tidak terbaca. Pastikan foto fokus dan mendekat ke area QR.
         </div>
 
         <div id="manual-override-container" class="mt-4 hidden flex items-center justify-center p-3 bg-gray-50 rounded-lg border border-gray-200">
           <input type="checkbox" id="ignore-qr" class="mr-2 cursor-pointer w-4 h-4 text-pln-main">
           <label for="ignore-qr" class="text-xs text-pln-muted cursor-pointer font-semibold">
-            Lewati scan, isi data secara manual
+            Lewati scan, saya akan isi data secara manual
           </label>
         </div>
 
@@ -103,10 +99,8 @@
       </div>
 
       <div id="step-2" class="step-card">
-        <div class="text-center mb-4">
-          <h2 class="text-xl font-extrabold mb-1 text-pln-dark">Foto Safety Briefing</h2>
-          <p class="text-sm text-pln-muted">Rekomendasi: <b>Portrait (HP Tegak)</b>.</p>
-        </div>
+        <h2 class="text-xl font-extrabold mb-2 text-pln-dark">Foto Safety Briefing</h2>
+        <p class="text-sm text-pln-muted mb-4">Ambil foto dokumentasi kegiatan Safety Briefing bersama tim pelaksana.</p>
         
         <div class="relative w-full aspect-[4/3] sm:aspect-[3/4] bg-pln-bg rounded-xl border-2 border-dashed border-gray-300 p-6 flex flex-col items-center justify-center mb-4 overflow-hidden">
           <div id="init-ui-SB" class="w-full flex flex-col gap-4 z-20">
@@ -122,10 +116,8 @@
               📁 GALERI
             </button>
           </div>
-          
-          <img id="preview-SB" class="absolute inset-0 w-full h-full object-cover rounded-xl hidden z-10">
+          <img id="preview-SB" class="absolute inset-0 w-full h-full object-cover hidden z-10">
           <button type="button" id="retake-btn-SB" onclick="resetMedia('SB')" class="absolute top-3 right-3 bg-red-500 text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-md hidden z-40 hover:bg-red-600 transition-colors">Ulangi</button>
-          
           <input type="file" id="camera-SB" accept="image/*" capture="environment" class="hidden" onchange="handleFile(this, 'SB')">
           <input type="file" id="gallery-SB" accept="image/*" class="hidden" onchange="handleFile(this, 'SB')">
         </div>
