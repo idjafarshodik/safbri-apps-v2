@@ -1,7 +1,7 @@
 export async function onRequestPost(context) {
   try {
     const requestData = await context.request.json();
-    const response = await fetch(context.env.N8N_WEBHOOK_URL, {
+    const response = await fetch(context.env.N8N_EXTRACT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestData)
