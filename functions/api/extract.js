@@ -5,7 +5,7 @@ export async function onRequestPost(context) {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'Authorization': context.env.API_KEY
+        'API_KEY': context.env.API_KEY
       },
       body: JSON.stringify(requestData)
     });
