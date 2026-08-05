@@ -5,7 +5,6 @@ let qrScanFails = 0;
 let extractionPromise = null;
 let extractedData = null;
 let abortController = null;
-let html5QrCode;
 
 document.querySelectorAll('input[type="text"], input[type="number"]').forEach(input => {
   input.addEventListener('input', (e) => {
@@ -22,8 +21,6 @@ flatpickr("#tanggal_pekerjaan", {
 });
 
 window.addEventListener('DOMContentLoaded', () => {
-  html5QrCode = new Html5Qrcode("qr-reader");
-
   ['nomor_wp', 'nama_pekerjaan', 'tanggal_pekerjaan', 'lokasi', 'tim_pelaksana', 'pengawas_k3', 'pengawas_pekerjaan', 'jumlah_pelaksana'].forEach(id => {
     const val = localStorage.getItem(`safbri_${id}`);
     if (val && document.getElementById(id)) document.getElementById(id).value = val;
@@ -202,27 +199,6 @@ const triggerScanFail = () => {
 };
 
 const resizeAndScanImage = (file, type) => {
-    if (type === 'WP') {
-        html5QrCode.scanFile(file, false)
-        .then(decodedText => {
-            if (decodedText.includes('hsse.pln.co.id')) {
-                document.getElementById('qr-error-msg').classList.add('hidden');
-                document.getElementById('manual-override-container').classList.add('hidden');
-                document.getElementById('btn-next-1').disabled = false;
-                extractedData = null;
-                extractionPromise = fetchExtractionData(decodedText);
-                nextStep(2);
-            } else {
-                triggerScanFail();
-            }
-        })
-        .catch(err => {
-            triggerScanFail();
-        });
-    } else if (type === 'SB') {
-        document.getElementById('btn-next-2').disabled = false;
-    }
-
     const reader = new FileReader();
     reader.onload = (e) => {
         const img = new Image();
