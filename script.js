@@ -6,6 +6,10 @@ let extractionPromise = null;
 let extractedData = null;
 let abortController = null;
 
+if (window.QrScanner) {
+    QrScanner.WORKER_PATH = 'https://unpkg.com/qr-scanner@1.4.2/qr-scanner-worker.min.js';
+}
+
 document.querySelectorAll('input[type="text"], input[type="number"]').forEach(input => {
   input.addEventListener('input', (e) => {
     localStorage.setItem(`safbri_${e.target.id}`, e.target.value);
@@ -214,42 +218,29 @@ const resizeAndScanImage = (file, type) => {
                     } catch(err) {}
                 }
 
-                if (!decodedText && window.jsQR) {
-                    const scanRegion = (startY, heightFactor) => {
-                        const rH = Math.floor(img.height * heightFactor);
-                        const rY = Math.floor(img.height * startY);
-                        const maxW = 1200;
-                        let sW = img.width;
-                        let sH = rH;
-                        
-                        if (sW > maxW) {
-                            sH = Math.round(sH * maxW / sW);
-                            sW = maxW;
-                        }
-                        
+                if (!decodedText && window.QrScanner) {
+                    const regions = [
+                        {x: 0, y: 0, w: 1, h: 1},
+                        {x: 0, y: 0.4, w: 1, h: 0.6},
+                        {x: 0, y: 0, w: 1, h: 0.6},
+                        {x: 0.2, y: 0.2, w: 0.6, h: 0.6}
+                    ];
+
+                    for (const r of regions) {
                         const c = document.createElement('canvas');
-                        c.width = sW;
-                        c.height = sH;
+                        c.width = img.width * r.w;
+                        c.height = img.height * r.h;
                         const ctx = c.getContext('2d', { willReadFrequently: true });
-                        ctx.drawImage(img, 0, rY, img.width, rH, 0, 0, sW, sH);
-                        const id = ctx.getImageData(0, 0, sW, sH);
-                        
-                        const code = jsQR(id.data, sW, sH, { inversionAttempts: "dontInvert" });
-                        if (code) return code.data;
+                        ctx.drawImage(img, img.width * r.x, img.height * r.y, c.width, c.height, 0, 0, c.width, c.height);
 
-                        const px = id.data;
-                        for(let i=0; i<px.length; i+=4) {
-                            let l = (px[i]+px[i+1]+px[i+2])/3;
-                            let v = l > 110 ? 255 : 0;
-                            px[i]=v; px[i+1]=v; px[i+2]=v;
-                        }
-                        const codeBin = jsQR(px, sW, sH, { inversionAttempts: "attemptBoth" });
-                        return codeBin ? codeBin.data : null;
-                    };
-
-                    decodedText = scanRegion(0.45, 0.55);
-                    if (!decodedText) decodedText = scanRegion(0.20, 0.60);
-                    if (!decodedText) decodedText = scanRegion(0, 1.0);
+                        try {
+                            const result = await QrScanner.scanImage(c, { returnDetailedScanResult: true });
+                            if (result && result.data) {
+                                decodedText = result.data;
+                                break;
+                            }
+                        } catch (err) {}
+                    }
                 }
             }
 
