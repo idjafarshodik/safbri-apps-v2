@@ -6,6 +6,7 @@
   <title>Safety Briefing ULTG Sampang</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script src="https://unpkg.com/qr-scanner@1.4.2/qr-scanner.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,18 +25,20 @@
   </script>
   <link rel="stylesheet" href="style.css">
 </head>
-<body class="min-h-screen text-pln-text flex flex-col items-center p-4 pt-12 md:pt-16 animated-bg">
+<body class="min-h-screen text-pln-text flex flex-col items-center p-4 pt-6 animated-bg relative pb-16">
 
   <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 px-6 py-3 rounded-lg shadow-xl text-white font-bold text-sm transition-all duration-300 z-50 transform -translate-y-20 opacity-0 pointer-events-none text-center min-w-[280px]"></div>
 
-  <div class="w-full max-w-md mb-3 flex flex-col items-center">
-    <div class="text-center mb-3 w-full px-2">
+  <div class="w-full max-w-md mb-2 flex flex-col items-center">
+    <div id="logo-placeholder" class="mb-2 w-full flex justify-center">
+    </div>
+    <div class="text-center mb-2 w-full px-2">
         <h1 class="text-2xl font-extrabold text-pln-dark mb-1">SAFBRI V2</h1>
-        <p class="text-sm text-pln-muted font-semibold">ULTG Sampang <span class="text-xs font-normal text-gray-400 block mt-1">v.2.12 - WebAssembly Grid Scanner (Nimiq)</span></p>
+        <p class="text-sm text-pln-muted font-semibold">ULTG Sampang <span class="text-xs font-normal text-gray-400 block mt-1">v.2.13 - Master Build</span></p>
     </div>
   </div>
 
-  <div id="progress-container" class="w-full max-w-md mb-6 hidden">
+  <div id="progress-container" class="w-full max-w-md mb-5 hidden">
     <div class="flex justify-between items-center mb-2 px-1">
       <span id="step-title" class="text-sm font-bold text-pln-dark uppercase tracking-wide"></span>
       <span class="text-xs font-extrabold bg-pln-soft text-pln-main px-3 py-1 rounded-full"><span id="current-step-indicator">1</span> / 4</span>
@@ -45,7 +48,7 @@
     </div>
   </div>
 
-  <div class="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 p-6 md:p-8 relative overflow-hidden">
+  <div class="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 p-6 relative overflow-hidden mb-8 z-10">
     <form id="safetyForm" class="w-full">
 
       <div id="step-0" class="step-card active text-center py-6">
@@ -63,7 +66,7 @@
           <p class="text-sm text-pln-muted">Rekomendasi: <b>Portrait (HP Tegak)</b>.</p>
         </div>
         
-        <div class="relative w-full aspect-[4/3] sm:aspect-[3/4] bg-pln-bg rounded-xl border-2 border-dashed border-gray-300 p-6 flex flex-col items-center justify-center mb-4 overflow-hidden">
+        <div class="relative w-full aspect-[4/3] sm:aspect-[3/4] bg-pln-bg rounded-xl border-2 border-dashed border-gray-300 p-6 flex flex-col items-center justify-center mb-2 overflow-hidden">
           <div id="init-ui-WP" class="w-full flex flex-col gap-4 z-20">
             <button type="button" onclick="document.getElementById('camera-WP').click()" class="w-full py-3.5 bg-[#2563eb] text-white font-bold rounded-lg shadow-[0_4px_0_#1d4ed8] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2">
               📸 AMBIL FOTO
@@ -85,13 +88,13 @@
           <input type="file" id="gallery-WP" accept="image/*" class="hidden" onchange="handleFile(this, 'WP')">
         </div>
 
-        <div id="qr-error-msg" class="text-red-500 text-sm font-bold mt-2 text-center hidden transition-all duration-300">
-          ⚠️ QR Code tidak terbaca. Pastikan foto fokus dan tidak blur.
+        <div id="qr-error-msg" class="text-yellow-600/80 text-xs font-medium mt-2 text-center hidden transition-all duration-300">
+          QR Code tidak terbaca. Pastikan foto fokus dan tidak blur.
         </div>
 
-        <div id="manual-override-container" class="mt-4 hidden flex items-center justify-center p-3 bg-gray-50 rounded-lg border border-gray-200">
-          <input type="checkbox" id="ignore-qr" class="mr-2 cursor-pointer w-4 h-4 text-pln-main">
-          <label for="ignore-qr" class="text-xs text-pln-muted cursor-pointer font-semibold">
+        <div id="manual-override-container" class="mt-3 hidden flex items-center justify-center p-2 opacity-60 transition-opacity duration-300 hover:opacity-100">
+          <input type="checkbox" id="ignore-qr" class="mr-2 cursor-pointer w-4 h-4 accent-gray-400">
+          <label for="ignore-qr" class="text-[11px] text-gray-500 cursor-pointer font-medium">
             Lewati scan, isi data secara manual
           </label>
         </div>
@@ -137,13 +140,14 @@
       </div>
 
       <div id="step-3" class="step-card">
-        <h2 class="text-xl font-extrabold mb-1 text-pln-dark">Data Pekerjaan</h2>
-        <p class="text-sm text-pln-muted mb-6">Periksa dan lengkapi data pekerjaan di bawah ini.</p>
+        <div class="text-center mb-4">
+          <h2 class="text-xl font-extrabold mb-1 text-pln-dark">Data Pekerjaan</h2>
+        </div>
         
         <div class="space-y-4">
           <div>
             <label class="block text-xs font-bold text-pln-muted mb-1 ml-1 uppercase">Nomor Formulir WP</label>
-            <input type="text" id="nomor_wp" class="kahoot-input w-full" placeholder="Contoh: 0153/25002560/VII/2026" required>
+            <input type="text" id="nomor_wp" class="kahoot-input w-full" placeholder="Contoh: 0153/25002560/VII/2026">
           </div>
           <div>
             <label class="block text-xs font-bold text-pln-muted mb-1 ml-1 uppercase">Nama Pekerjaan</label>
@@ -154,16 +158,8 @@
             <input type="text" id="tanggal_pekerjaan" class="kahoot-input w-full bg-white" placeholder="Pilih tanggal..." required readonly>
           </div>
           <div>
-            <label class="block text-xs font-bold text-pln-muted mb-1 ml-1 uppercase">Lokasi Gardu Induk</label>
+            <label class="block text-xs font-bold text-pln-muted mb-1 ml-1 uppercase">Lokasi Pekerjaan</label>
             <input type="text" id="lokasi" class="kahoot-input w-full" placeholder="Contoh: GI Sampang" required>
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-pln-muted mb-1 ml-1 uppercase">Pengawas Pekerjaan</label>
-            <input type="text" id="pengawas_pekerjaan" class="kahoot-input w-full" placeholder="Nama pengawas pekerjaan..." required>
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-pln-muted mb-1 ml-1 uppercase">Pengawas K3</label>
-            <input type="text" id="pengawas_k3" class="kahoot-input w-full" placeholder="Nama pengawas K3..." required>
           </div>
         </div>
 
@@ -174,13 +170,22 @@
       </div>
 
       <div id="step-4" class="step-card">
-        <h2 class="text-xl font-extrabold mb-1 text-pln-dark">Data Pelaksana</h2>
-        <p class="text-sm text-pln-muted mb-6">Lengkapi data tim pelaksana.</p>
+        <div class="text-center mb-4">
+          <h2 class="text-xl font-extrabold mb-1 text-pln-dark">Data Pelaksana</h2>
+        </div>
 
         <div class="space-y-4">
           <div>
-            <label class="block text-xs font-bold text-pln-muted mb-1 ml-1 uppercase">Tim Pelaksana / Perusahaan</label>
+            <label class="block text-xs font-bold text-pln-muted mb-1 ml-1 uppercase">Tim Pelaksana / Vendor</label>
             <input type="text" id="tim_pelaksana" class="kahoot-input w-full" placeholder="Contoh: PT. ABC / Har GI" required>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-pln-muted mb-1 ml-1 uppercase">Pengawas K3</label>
+            <input type="text" id="pengawas_k3" class="kahoot-input w-full" placeholder="Nama pengawas K3..." required>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-pln-muted mb-1 ml-1 uppercase">Pengawas Pekerjaan</label>
+            <input type="text" id="pengawas_pekerjaan" class="kahoot-input w-full" placeholder="Nama pengawas pekerjaan..." required>
           </div>
           <div>
             <label class="block text-xs font-bold text-pln-muted mb-1 ml-1 uppercase">Jumlah Pelaksana (Orang)</label>
@@ -218,9 +223,15 @@
     </form>
   </div>
 
-  <div id="sync-overlay" class="fixed inset-0 bg-white/90 z-50 hidden flex-col items-center justify-center backdrop-blur-sm">
-    <div class="animate-spin rounded-full h-12 w-12 border-b-4 border-pln-main mb-3"></div>
-    <p class="text-pln-dark font-bold animate-pulse">Menyinkronkan data izin kerja...</p>
+  <div class="absolute bottom-4 w-full text-center z-0 pointer-events-none">
+    <p class="text-[10px] font-bold text-gray-400 tracking-wider">© SAFBRI-APPS @ULTG SAMPANG 2026</p>
+  </div>
+
+  <div id="sync-overlay" class="fixed inset-0 z-50 hidden flex-col items-center justify-center futuristic-overlay">
+    <div class="cyber-ring">
+      <div class="cyber-ring inner"></div>
+    </div>
+    <p class="text-white font-bold tracking-widest mt-6 cyber-text text-sm">SINKRONISASI DATA...</p>
   </div>
   
   <script src="script.js"></script>

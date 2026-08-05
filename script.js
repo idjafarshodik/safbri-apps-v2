@@ -244,7 +244,7 @@ const resizeAndScanImage = (file, type) => {
                 }
             }
 
-            const saveMax = 1000;
+            const saveMax = 1200;
             let fW = img.width;
             let fH = img.height;
             if (fW > fH) {
@@ -400,6 +400,11 @@ document.getElementById('safetyForm').addEventListener('submit', async (e) => {
       jumlah_pelaksana: document.getElementById('jumlah_pelaksana').value,
       foto_collage: generateCollage()
     };
+    
+    let optionalWp = document.getElementById('nomor_wp');
+    if(optionalWp && optionalWp.value) {
+        payload.nomor_wp = optionalWp.value;
+    }
 
     const response = await fetch('/api/submit', {
       method: 'POST',

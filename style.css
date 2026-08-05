@@ -91,9 +91,9 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 
 .check-circle {
-  stroke-dasharray: 283;
-  stroke-dashoffset: 283;
-  stroke-width: 4;
+  stroke-dasharray: 166;
+  stroke-dashoffset: 166;
+  stroke-width: 2.5;
   stroke-miterlimit: 10;
   stroke: #22c55e;
   fill: none;
@@ -104,11 +104,8 @@ input[type="number"]::-webkit-inner-spin-button {
   transform-origin: 50% 50%;
   stroke-dasharray: 48;
   stroke-dashoffset: 48;
-  stroke-width: 4;
+  stroke-width: 3;
   stroke: #22c55e;
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
   animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.6s forwards;
 }
 
@@ -126,12 +123,48 @@ input[type="number"]::-webkit-inner-spin-button {
   animation: popIn 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
 }
 
-@keyframes scan {
-  0% { top: 0; }
-  50% { top: 100%; }
-  100% { top: 0; }
+.futuristic-overlay {
+  background: rgba(10, 25, 47, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
-.animate-scan {
-  animation: scan 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+.cyber-ring {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-top-color: #14a2ba;
+  border-right-color: #14a2ba;
+  animation: orbit 1.5s linear infinite;
+  box-shadow: 0 0 15px rgba(20, 162, 186, 0.4);
+  position: relative;
+}
+
+.cyber-ring.inner {
+  width: 40px;
+  height: 40px;
+  border-top-color: #eab308;
+  border-right-color: transparent;
+  border-left-color: #eab308;
+  animation: orbit-inner 1s linear infinite;
+  box-shadow: 0 0 10px rgba(234, 179, 8, 0.3);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+}
+
+@keyframes orbit {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes orbit-inner {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(-360deg); }
+}
+
+.cyber-text {
+  color: #14a2ba;
+  text-shadow: 0 0 8px rgba(20, 162, 186, 0.6);
 }
