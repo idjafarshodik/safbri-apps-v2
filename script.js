@@ -104,6 +104,27 @@ const prevStep = (targetStep) => {
   updateUI();
 };
 
+const startNewReport = () => {
+  localStorage.clear();
+  document.getElementById('safetyForm').reset();
+  resetMedia('WP');
+  resetMedia('SB');
+  
+  qrScanFails = 0;
+  extractedData = null;
+  extractionPromise = null;
+  document.getElementById('qr-error-msg').classList.add('hidden');
+  document.getElementById('manual-override-container').classList.add('hidden');
+  document.getElementById('manual-override-container').classList.remove('flex');
+  
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = false;
+  btn.innerText = 'KIRIM LAPORAN';
+  
+  currentStep = 0;
+  updateUI();
+};
+
 const setWpStatus = (state) => {
     const container = document.getElementById('wp-status-container');
     const spinner = document.getElementById('wp-status-spinner');
