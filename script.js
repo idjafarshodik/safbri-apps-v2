@@ -217,28 +217,49 @@ const resizeAndScanImage = (file, type) => {
         img.onload = async () => {
             let decodedText = null;
 
+            console.log(`\n--- [DEBUG QR-SCAN] MEMULAI PROSES ---`);
+            console.log(`[DEBUG] Sumber Tipe: ${type}`);
+            console.log(`[DEBUG] Resolusi Asli Gambar: ${img.width} x ${img.height} pixels`);
+
             if (type === 'WP') {
+                // Lapis 1: Coba Native BarcodeDetector
                 if ('BarcodeDetector' in window) {
+                    console.log(`[DEBUG] Lapis 1: BarcodeDetector Native TERSEDIA. Mencoba memindai...`);
                     try {
                         const detector = new BarcodeDetector({ formats: ['qr_code'] });
                         const barcodes = await detector.detect(img);
-                        if (barcodes.length > 0) decodedText = barcodes[0].rawValue;
-                    } catch(err) {}
+                        if (barcodes.length > 0) {
+                            decodedText = barcodes[0].rawValue;
+                            console.log(`[DEBUG] Lapis 1 SUKSES! Hasil: ${decodedText}`);
+                        } else {
+                            console.warn(`[DEBUG] Lapis 1 GAGAL: Tidak menemukan QR Code.`);
+                        }
+                    } catch(err) {
+                        console.error(`[DEBUG] Lapis 1 ERROR CRASH:`, err);
+                    }
+                } else {
+                    console.warn(`[DEBUG] Lapis 1: BarcodeDetector Native TIDAK didukung oleh browser ini.`);
                 }
 
+                // Lapis 2: Coba Nimiq QrScanner dengan Quad-Hunting
                 if (!decodedText && window.QrScanner) {
+                    console.log(`[DEBUG] Lapis 2: Memulai Perburuan Kuadran menggunakan WebAssembly (Nimiq)...`);
                     const regions = [
-                        {x: 0.4, y: 0.4, w: 0.6, h: 0.6},
-                        {x: 0, y: 0.4, w: 0.6, h: 0.6},
-                        {x: 0.4, y: 0, w: 0.6, h: 0.6},
-                        {x: 0, y: 0, w: 0.6, h: 0.6},
-                        {x: 0, y: 0, w: 1, h: 1}
+                        {id: "Kanan Bawah", x: 0.4, y: 0.4, w: 0.6, h: 0.6},
+                        {id: "Kiri Bawah", x: 0, y: 0.4, w: 0.6, h: 0.6},
+                        {id: "Kanan Atas", x: 0.4, y: 0, w: 0.6, h: 0.6},
+                        {id: "Kiri Atas", x: 0, y: 0, w: 0.6, h: 0.6},
+                        {id: "Full Gambar", x: 0, y: 0, w: 1, h: 1}
                     ];
 
                     for (const r of regions) {
+                        console.log(`[DEBUG] -> Mengecek Kuadran: ${r.id}`);
                         const c = document.createElement('canvas');
                         c.width = Math.floor(img.width * r.w);
                         c.height = Math.floor(img.height * r.h);
+                        
+                        console.log(`[DEBUG]    Resolusi Potongan Canvas: ${c.width} x ${c.height}`);
+
                         const ctx = c.getContext('2d', { willReadFrequently: true });
                         ctx.drawImage(img, Math.floor(img.width * r.x), Math.floor(img.height * r.y), c.width, c.height, 0, 0, c.width, c.height);
 
@@ -246,9 +267,15 @@ const resizeAndScanImage = (file, type) => {
                             const result = await QrScanner.scanImage(c, { returnDetailedScanResult: true });
                             if (result && result.data) {
                                 decodedText = result.data;
+                                console.log(`[DEBUG] Lapis 2 SUKSES di Kuadran [${r.id}]! Hasil: ${decodedText}`);
                                 break;
                             }
-                        } catch (err) {}
+                        } catch (err) {
+                            console.warn(`[DEBUG]    Gagal di Kuadran [${r.id}]. Pesan Error Engine:`, err);
+                        }
+                    }
+                    if(!decodedText) {
+                        console.error(`[DEBUG] Lapis 2 GAGAL TOTAL: Semua kuadran tidak menemukan QR.`);
                     }
                 }
             }
