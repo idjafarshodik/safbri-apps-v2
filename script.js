@@ -223,25 +223,6 @@ const resizeAndScanImage = (file, type) => {
 
             if (type === 'WP') {
                 // Lapis 1: Coba Native BarcodeDetector
-                if ('BarcodeDetector' in window) {
-                    console.log(`[DEBUG] Lapis 1: BarcodeDetector Native TERSEDIA. Mencoba memindai...`);
-                    try {
-                        const detector = new BarcodeDetector({ formats: ['qr_code'] });
-                        const barcodes = await detector.detect(img);
-                        if (barcodes.length > 0) {
-                            decodedText = barcodes[0].rawValue;
-                            console.log(`[DEBUG] Lapis 1 SUKSES! Hasil: ${decodedText}`);
-                        } else {
-                            console.warn(`[DEBUG] Lapis 1 GAGAL: Tidak menemukan QR Code.`);
-                        }
-                    } catch(err) {
-                        console.error(`[DEBUG] Lapis 1 ERROR CRASH:`, err);
-                    }
-                } else {
-                    console.warn(`[DEBUG] Lapis 1: BarcodeDetector Native TIDAK didukung oleh browser ini.`);
-                }
-
-                // Lapis 2: Coba Nimiq QrScanner dengan Quad-Hunting
                 if (!decodedText && window.QrScanner) {
                     console.log(`[DEBUG] Lapis 2: Memulai Perburuan Kuadran menggunakan WebAssembly (Nimiq)...`);
                     const regions = [
@@ -253,42 +234,43 @@ const resizeAndScanImage = (file, type) => {
                     ];
 
                     for (const r of regions) {
-                          console.log(`[DEBUG] -> Mengecek Kuadran: ${r.id}`);
-                          const c = document.createElement('canvas');
-                          
-                          // Pertahankan 100% resolusi asli pada potongan (TIDAK di-downscale)
-                          c.width = Math.floor(img.width * r.w);
-                          c.height = Math.floor(img.height * r.h);
-                          
-                          console.log(`[DEBUG]    Resolusi Canvas (1:1 Skala Asli): ${c.width} x ${c.height}`);
+                        console.log(`[DEBUG] -> Mengecek Kuadran: ${r.id}`);
+                        const c = document.createElement('canvas');
+                        
+                        // Pertahankan 100% resolusi asli pada potongan (TIDAK di-downscale)
+                        c.width = Math.floor(img.width * r.w);
+                        c.height = Math.floor(img.height * r.h);
+                        
+                        console.log(`[DEBUG]    Resolusi Canvas (1:1 Skala Asli): ${c.width} x ${c.height}`);
 
-                          const ctx = c.getContext('2d', { willReadFrequently: true });
-                          
-                          // Amankan ketajaman piksel saat merender potongan gambar
-                          ctx.imageSmoothingEnabled = true;
-                          ctx.imageSmoothingQuality = 'high';
+                        const ctx = c.getContext('2d', { willReadFrequently: true });
+                        
+                        // Amankan ketajaman piksel saat merender potongan gambar
+                        ctx.imageSmoothingEnabled = true;
+                        ctx.imageSmoothingQuality = 'high';
 
-                          // Potong (Crop) skala 1:1 persis ke kanvas mesin
-                          ctx.drawImage(img, 
-                              Math.floor(img.width * r.x), Math.floor(img.height * r.y), c.width, c.height, 
-                              0, 0, c.width, c.height
-                          );
+                        // Potong (Crop) skala 1:1 persis ke kanvas mesin
+                        ctx.drawImage(img, 
+                            Math.floor(img.width * r.x), Math.floor(img.height * r.y), c.width, c.height, 
+                            0, 0, c.width, c.height
+                        );
 
-                          try {
-                              const result = await QrScanner.scanImage(c, { returnDetailedScanResult: true });
-                              if (result && result.data) {
-                                  decodedText = result.data;
-                                  console.log(`[DEBUG] Lapis 2 SUKSES di Kuadran [${r.id}]! Hasil: ${decodedText}`);
-                                  break;
-                              }
-                          } catch (err) {
-                              console.warn(`[DEBUG]    Gagal di Kuadran [${r.id}]. Pesan Error Engine:`, err);
-                          }
-                      }
-                      if(!decodedText) {
-                          console.error(`[DEBUG] Lapis 2 GAGAL TOTAL: Semua kuadran tidak menemukan QR.`);
-                      }
-                  }
+                        try {
+                            const result = await QrScanner.scanImage(c, { returnDetailedScanResult: true });
+                            if (result && result.data) {
+                                decodedText = result.data;
+                                console.log(`[DEBUG] Lapis 2 SUKSES di Kuadran [${r.id}]! Hasil: ${decodedText}`);
+                                break;
+                            }
+                        } catch (err) {
+                            console.warn(`[DEBUG]    Gagal di Kuadran [${r.id}]. Pesan Error Engine:`, err);
+                        }
+                    }
+                    if(!decodedText) {
+                        console.error(`[DEBUG] Lapis 2 GAGAL TOTAL: Semua kuadran tidak menemukan QR.`);
+                    }
+                }
+            }
 
             const saveMax = 1200;
             let fW = img.width;
