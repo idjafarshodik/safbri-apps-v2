@@ -212,26 +212,78 @@ const scanImage = (file, type) => {
             }
 
             if (!decodedText && window.QrScanner) {
+                console.log(`[DEBUG] Lapis 2: Eksekusi Hybrid (Potong Bawah + OpenCV Binarization + Nimiq)`);
+
                 const c = document.createElement('canvas');
-                const cropW = img.width * 0.6;
-                const cropH = img.height * 0.5;
                 
-                c.width = Math.floor(cropW);
-                c.height = Math.floor(cropH);
-                
+                // 1. Ambil 55% bagian bawah (Zona pasti QR PLN)
+                const cropY = img.height * 0.45; 
+                const cropH = img.height - cropY;
+                const cropW = img.width;
+
+                // 2. Proteksi Resolusi & Zoom 2x (Ide Japp)
+                const maxSafeRes = 1400; // Batas aman RAM HP
+                let scale = 2; // Default Zoom 2x
+
+                // Cegah HP Crash jika foto dari galeri berukuran 4000px
+                if ((cropW * scale) > maxSafeRes || (cropH * scale) > maxSafeRes) {
+                    scale = Math.min(maxSafeRes / cropW, maxSafeRes / cropH); 
+                }
+
+                c.width = Math.floor(cropW * scale);
+                c.height = Math.floor(cropH * scale);
+                console.log(`[DEBUG] Dimensi Canvas Potong & Zoom: ${c.width} x ${c.height}`);
+
                 const ctx = c.getContext('2d', { willReadFrequently: true });
                 ctx.imageSmoothingEnabled = true;
                 ctx.imageSmoothingQuality = 'high';
 
                 ctx.drawImage(img, 
-                    Math.floor(img.width * 0.4), Math.floor(img.height * 0.5), c.width, c.height, 
+                    0, Math.floor(cropY), Math.floor(cropW), Math.floor(cropH), 
                     0, 0, c.width, c.height
                 );
 
+                // 3. Proses "Cuci Cetak" menggunakan OpenCV
+                if (typeof cv !== 'undefined' && cv.Mat) {
+                    try {
+                        console.log(`[DEBUG] OpenCV Aktif: Memulai Grayscale & Adaptive Threshold...`);
+                        let src = cv.imread(c);
+                        let dst = new cv.Mat();
+
+                        // Ubah ke Abu-abu
+                        cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
+                        
+                        // Buang noise bintik kamera (Blur Tipis)
+                        let ksize = new cv.Size(3, 3);
+                        cv.GaussianBlur(dst, dst, ksize, 0, 0, cv.BORDER_DEFAULT);
+
+                        // Binarization: Ubah piksel bayangan/blur jadi Hitam-Putih mutlak
+                        cv.adaptiveThreshold(dst, dst, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 21, 10);
+
+                        // Render kembali ke Canvas
+                        cv.imshow(c, dst);
+
+                        // WAJIB CLEAR RAM (Mencegah Memory Leak)
+                        src.delete();
+                        dst.delete();
+                        console.log(`[DEBUG] OpenCV Selesai. Gambar di-binarize sempurna.`);
+                    } catch (cvErr) {
+                        console.error(`[DEBUG] OpenCV Error (Menggunakan canvas normal):`, cvErr);
+                    }
+                } else {
+                    console.warn(`[DEBUG] OpenCV belum terload. Lanjut tanpa Binarization.`);
+                }
+
+                // 4. Lakukan Scan pada kanvas yang sudah super tajam
                 try {
                     const result = await QrScanner.scanImage(c, { returnDetailedScanResult: true });
-                    if (result && result.data) decodedText = result.data;
-                } catch (err) {}
+                    if (result && result.data) {
+                        decodedText = result.data;
+                        console.log(`[DEBUG] Lapis 2 SUKSES! Hasil: ${decodedText}`);
+                    }
+                } catch (err) {
+                    console.warn(`[DEBUG] Lapis 2 GAGAL. Pesan:`, err);
+                }
             }
 
             if (decodedText && decodedText.includes('hsse.pln.co.id')) {
