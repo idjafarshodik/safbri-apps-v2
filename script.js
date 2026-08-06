@@ -104,13 +104,42 @@ const prevStep = (targetStep) => {
   updateUI();
 };
 
+const setWpStatus = (state) => {
+    const container = document.getElementById('wp-status-container');
+    const spinner = document.getElementById('wp-status-spinner');
+    const text = document.getElementById('wp-status-text');
+    
+    if (!container) return;
+    
+    container.classList.remove('hidden');
+    spinner.classList.add('hidden');
+    text.className = 'font-semibold text-xs'; 
+    
+    if (state === 'loading') {
+        spinner.classList.remove('hidden');
+        text.innerText = '[ o reading wp.. ]';
+        text.classList.add('text-pln-muted'); 
+    } else if (state === 'success') {
+        text.innerText = 'Good! Silahkan lanjutkan';
+        text.classList.add('text-green-500');
+    } else if (state === 'fail') {
+        text.innerText = 'Foto tidak jelas - posisikan wp dengan posisi tegak dan tidak blur.';
+        text.classList.add('text-red-500');
+    } else if (state === 'hidden') {
+        container.classList.add('hidden');
+    }
+};
+
 const triggerScanFail = () => {
     qrScanFails++;
-    document.getElementById('qr-error-msg').classList.remove('hidden');
-    document.getElementById('btn-next-1').disabled = true;
-    if (qrScanFails >= 2) {
-        document.getElementById('manual-override-container').classList.remove('hidden');
-        document.getElementById('manual-override-container').classList.add('flex');
+    setWpStatus('fail');
+    const btnNext = document.getElementById('btn-next-1');
+    if (btnNext) btnNext.disabled = true;
+    
+    const manualOverride = document.getElementById('manual-override-container');
+    if (qrScanFails >= 2 && manualOverride) {
+        manualOverride.classList.remove('hidden');
+        manualOverride.classList.add('flex');
     }
 };
 
@@ -120,23 +149,31 @@ const scanImage = (file, type) => {
     
     img.onload = async () => {
         images[type] = img;
-        document.getElementById(`init-ui-${type}`).classList.add('hidden');
+        const initUi = document.getElementById(`init-ui-${type}`);
+        if(initUi) initUi.classList.add('hidden');
+        
         const preview = document.getElementById(`preview-${type}`);
-        preview.src = objectUrl;
-        preview.classList.remove('hidden');
-        document.getElementById(`retake-btn-${type}`).classList.remove('hidden');
+        if(preview) {
+            preview.src = objectUrl;
+            preview.classList.remove('hidden');
+        }
+        
+        const retakeBtn = document.getElementById(`retake-btn-${type}`);
+        if(retakeBtn) retakeBtn.classList.remove('hidden');
 
         if (type === 'WP') {
             const container = document.getElementById('container-WP');
-            if (img.width <= img.height) {
-                container.classList.remove('aspect-video');
-                container.classList.add('aspect-[3/4]');
-            } else {
-                container.classList.remove('aspect-[3/4]');
-                container.classList.add('aspect-video');
+            if (container) {
+                if (img.width <= img.height) {
+                    container.classList.remove('aspect-video');
+                    container.classList.add('aspect-[3/4]');
+                } else {
+                    container.classList.remove('aspect-[3/4]');
+                    container.classList.add('aspect-video');
+                }
             }
 
-            showToast("Sedang Menganalisa QR & Mengekstrak Data...", false);
+            setWpStatus('loading');
 
             const c = document.createElement('canvas');
             const cropY = img.height * 0.45; 
@@ -161,40 +198,47 @@ const scanImage = (file, type) => {
                 0, 0, c.width, c.height
             );
 
-            const base64Image = c.toDataURL('image/jpeg', 0.85);
+            c.toBlob(async (blob) => {
+                const formData = new FormData();
+                formData.append('file', blob, 'scan_wp.jpg');
 
-            try {
-                const res = await fetch('/api/extract', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ image: base64Image })
-                });
-                
-                const dataObj = await res.json();
-                
-                if (dataObj.status === 'success' && dataObj.data && dataObj.data.nomor_wp) {
-                    ['nomor_wp', 'nama_pekerjaan', 'tim_pelaksana', 'pengawas_k3', 'pengawas_pekerjaan'].forEach(key => {
-                        if (dataObj.data[key]) {
-                            const el = document.getElementById(key);
-                            if(el) {
-                                el.value = dataObj.data[key];
-                                localStorage.setItem(`safbri_${key}`, dataObj.data[key]);
-                            }
-                        }
+                try {
+                    const WEBHOOK_URL = '/api/scan-qr'; 
+                    const res = await fetch(WEBHOOK_URL, {
+                        method: 'POST',
+                        body: formData
                     });
-                    showToast("Data berhasil diekstrak.");
-                    document.getElementById('qr-error-msg').classList.add('hidden');
-                    document.getElementById('manual-override-container').classList.add('hidden');
-                    document.getElementById('btn-next-1').disabled = false;
-                } else {
+                    
+                    const dataObj = await res.json();
+                    
+                    if (dataObj.status === 'success' && dataObj.data && dataObj.data.nomor_wp) {
+                        ['nomor_wp', 'nama_pekerjaan', 'tim_pelaksana', 'pengawas_k3', 'pengawas_pekerjaan'].forEach(key => {
+                            if (dataObj.data[key]) {
+                                const el = document.getElementById(key);
+                                if(el) {
+                                    el.value = dataObj.data[key];
+                                    localStorage.setItem(`safbri_${key}`, dataObj.data[key]);
+                                }
+                            }
+                        });
+                        setWpStatus('success');
+                        
+                        const manualOverride = document.getElementById('manual-override-container');
+                        if(manualOverride) manualOverride.classList.add('hidden');
+                        
+                        const btnNext = document.getElementById('btn-next-1');
+                        if(btnNext) btnNext.disabled = false;
+                    } else {
+                        triggerScanFail();
+                    }
+                } catch(err) {
                     triggerScanFail();
                 }
-            } catch(err) {
-                triggerScanFail();
-            }
+            }, 'image/jpeg', 0.85);
 
         } else if (type === 'SB') {
-            document.getElementById('btn-next-2').disabled = false;
+            const btnNext2 = document.getElementById('btn-next-2');
+            if(btnNext2) btnNext2.disabled = false;
         }
     };
     img.src = objectUrl;
@@ -212,40 +256,35 @@ const resetMedia = (type) => {
       URL.revokeObjectURL(images[type].src);
   }
   images[type] = null;
-  document.getElementById(`preview-${type}`).classList.add('hidden');
-  document.getElementById(`retake-btn-${type}`).classList.add('hidden');
-  document.getElementById(`init-ui-${type}`).classList.remove('hidden');
+  
+  const preview = document.getElementById(`preview-${type}`);
+  if(preview) preview.classList.add('hidden');
+  
+  const retakeBtn = document.getElementById(`retake-btn-${type}`);
+  if(retakeBtn) retakeBtn.classList.add('hidden');
+  
+  const initUi = document.getElementById(`init-ui-${type}`);
+  if(initUi) initUi.classList.remove('hidden');
   
   if (type === 'WP') {
       const container = document.getElementById('container-WP');
-      container.classList.remove('aspect-[3/4]');
-      container.classList.add('aspect-video');
+      if(container) {
+          container.classList.remove('aspect-[3/4]');
+          container.classList.add('aspect-video');
+      }
       
-      document.getElementById('btn-next-1').disabled = true;
-      document.getElementById('ignore-qr').checked = false;
+      const btnNext1 = document.getElementById('btn-next-1');
+      if(btnNext1) btnNext1.disabled = true;
+      
+      const ignoreQr = document.getElementById('ignore-qr');
+      if(ignoreQr) ignoreQr.checked = false;
+      
+      setWpStatus('hidden');
   }
   if (type === 'SB') {
-      document.getElementById('btn-next-2').disabled = true;
+      const btnNext2 = document.getElementById('btn-next-2');
+      if(btnNext2) btnNext2.disabled = true;
   }
-};
-
-const startNewReport = () => {
-  localStorage.clear();
-  document.getElementById('safetyForm').reset();
-  resetMedia('WP');
-  resetMedia('SB');
-  
-  qrScanFails = 0;
-  document.getElementById('qr-error-msg').classList.add('hidden');
-  document.getElementById('manual-override-container').classList.add('hidden');
-  document.getElementById('manual-override-container').classList.remove('flex');
-  
-  const btn = document.getElementById('submitBtn');
-  btn.disabled = false;
-  btn.innerText = 'KIRIM LAPORAN ✔';
-  
-  currentStep = 0;
-  updateUI();
 };
 
 const generateCollageAndResize = async () => {
@@ -351,13 +390,13 @@ document.getElementById('safetyForm').addEventListener('submit', async (e) => {
       updateUI(); 
     } else {
       btn.disabled = false;
-      btn.innerText = 'KIRIM LAPORAN ✔';
+      btn.innerText = 'KIRIM LAPORAN';
       currentStep = 6;     
       updateUI();
     }
   } catch (error) {
     btn.disabled = false;
-    btn.innerText = 'KIRIM LAPORAN ✔';
+    btn.innerText = 'KIRIM LAPORAN';
     currentStep = 6;    
     updateUI();
   }
