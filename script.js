@@ -2,13 +2,6 @@ let currentStep = 0;
 const titles = ['Foto Working Permit', 'Foto Safety Briefing', 'Data Pekerjaan', 'Data Pelaksana'];
 const images = { WP: null, SB: null };
 let qrScanFails = 0;
-let extractionPromise = null;
-let extractedData = null;
-let abortController = null;
-
-if (window.QrScanner) {
-    QrScanner.WORKER_PATH = 'https://unpkg.com/qr-scanner@1.4.2/qr-scanner-worker.min.js';
-}
 
 document.querySelectorAll('input[type="text"], input[type="number"]').forEach(input => {
   input.addEventListener('input', (e) => {
@@ -97,66 +90,8 @@ const validateStep = (step) => {
   return true;
 };
 
-const fetchExtractionData = async (url) => {
-    if (abortController) abortController.abort();
-    abortController = new AbortController();
-    
-    try {
-        const response = await fetch('/api/extract', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url }),
-            signal: abortController.signal
-        });
-        
-        if (response.ok) {
-            const res = await response.json();
-            const dataObj = Array.isArray(res) ? res[0] : res;
-            if (dataObj && dataObj.data) extractedData = dataObj.data;
-        }
-    } catch (e) {
-        extractedData = null;
-    }
-};
-
 const nextStep = async (targetStep) => {
   if (currentStep === 0 || validateStep(currentStep)) {
-      
-    if (currentStep === 2 && targetStep === 3) {
-        const overlay = document.getElementById('sync-overlay');
-        const isManual = document.getElementById('ignore-qr').checked;
-        
-        if (!isManual && extractionPromise) {
-            overlay.classList.remove('hidden');
-            overlay.classList.add('flex');
-            
-            const timeoutPromise = new Promise(resolve => setTimeout(() => {
-                if (abortController) abortController.abort();
-                resolve();
-            }, 15000));
-            
-            await Promise.race([extractionPromise, timeoutPromise]);
-            
-            overlay.classList.add('hidden');
-            overlay.classList.remove('flex');
-            
-            if (extractedData) {
-                ['nomor_wp', 'nama_pekerjaan', 'tim_pelaksana', 'pengawas_k3', 'pengawas_pekerjaan'].forEach(key => {
-                    if (extractedData[key]) {
-                        const el = document.getElementById(key);
-                        if(el) {
-                            el.value = extractedData[key];
-                            localStorage.setItem(`safbri_${key}`, extractedData[key]);
-                        }
-                    }
-                });
-                showToast("Data berhasil diekstrak.");
-            } else {
-                showToast("Sinyal lambat, silakan lengkapi manual.", true);
-            }
-        }
-    }
-      
     currentStep = targetStep;
     updateUI();
   } else {
@@ -185,8 +120,6 @@ const scanImage = (file, type) => {
     
     img.onload = async () => {
         images[type] = img;
-        let decodedText = null;
-
         document.getElementById(`init-ui-${type}`).classList.add('hidden');
         const preview = document.getElementById(`preview-${type}`);
         preview.src = objectUrl;
@@ -203,100 +136,63 @@ const scanImage = (file, type) => {
                 container.classList.add('aspect-video');
             }
 
-            if ('BarcodeDetector' in window) {
-                try {
-                    const detector = new BarcodeDetector({ formats: ['qr_code'] });
-                    const barcodes = await detector.detect(img);
-                    if (barcodes.length > 0) decodedText = barcodes[0].rawValue;
-                } catch(err) {}
+            showToast("Sedang Menganalisa QR & Mengekstrak Data...", false);
+
+            const c = document.createElement('canvas');
+            const cropY = img.height * 0.45; 
+            const cropH = img.height - cropY;
+            const cropW = img.width;
+
+            const maxSafeRes = 1200; 
+            let scale = 1;
+            if (cropW > maxSafeRes || cropH > maxSafeRes) {
+                scale = Math.min(maxSafeRes / cropW, maxSafeRes / cropH); 
             }
 
-            if (!decodedText && window.QrScanner) {
-                console.log(`[DEBUG] Lapis 2: Eksekusi Hybrid (Potong Bawah + OpenCV Binarization + Nimiq)`);
+            c.width = Math.floor(cropW * scale);
+            c.height = Math.floor(cropH * scale);
+            
+            const ctx = c.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
 
-                const c = document.createElement('canvas');
+            ctx.drawImage(img, 
+                0, Math.floor(cropY), Math.floor(cropW), Math.floor(cropH), 
+                0, 0, c.width, c.height
+            );
+
+            const base64Image = c.toDataURL('image/jpeg', 0.85);
+
+            try {
+                const res = await fetch('/api/extract', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: base64Image })
+                });
                 
-                // 1. Ambil 55% bagian bawah (Zona pasti QR PLN)
-                const cropY = img.height * 0.45; 
-                const cropH = img.height - cropY;
-                const cropW = img.width;
-
-                // 2. Proteksi Resolusi & Zoom 2x (Ide Japp)
-                const maxSafeRes = 1400; // Batas aman RAM HP
-                let scale = 2; // Default Zoom 2x
-
-                // Cegah HP Crash jika foto dari galeri berukuran 4000px
-                if ((cropW * scale) > maxSafeRes || (cropH * scale) > maxSafeRes) {
-                    scale = Math.min(maxSafeRes / cropW, maxSafeRes / cropH); 
-                }
-
-                c.width = Math.floor(cropW * scale);
-                c.height = Math.floor(cropH * scale);
-                console.log(`[DEBUG] Dimensi Canvas Potong & Zoom: ${c.width} x ${c.height}`);
-
-                const ctx = c.getContext('2d', { willReadFrequently: true });
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
-
-                ctx.drawImage(img, 
-                    0, Math.floor(cropY), Math.floor(cropW), Math.floor(cropH), 
-                    0, 0, c.width, c.height
-                );
-
-                // 3. Proses "Cuci Cetak" menggunakan OpenCV
-                if (typeof cv !== 'undefined' && cv.Mat) {
-                    try {
-                        console.log(`[DEBUG] OpenCV Aktif: Memulai Grayscale & Adaptive Threshold...`);
-                        let src = cv.imread(c);
-                        let dst = new cv.Mat();
-
-                        // Ubah ke Abu-abu
-                        cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
-                        
-                        // Buang noise bintik kamera (Blur Tipis)
-                        let ksize = new cv.Size(3, 3);
-                        cv.GaussianBlur(dst, dst, ksize, 0, 0, cv.BORDER_DEFAULT);
-
-                        // Binarization: Ubah piksel bayangan/blur jadi Hitam-Putih mutlak
-                        cv.adaptiveThreshold(dst, dst, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 21, 10);
-
-                        // Render kembali ke Canvas
-                        cv.imshow(c, dst);
-
-                        // WAJIB CLEAR RAM (Mencegah Memory Leak)
-                        src.delete();
-                        dst.delete();
-                        console.log(`[DEBUG] OpenCV Selesai. Gambar di-binarize sempurna.`);
-                    } catch (cvErr) {
-                        console.error(`[DEBUG] OpenCV Error (Menggunakan canvas normal):`, cvErr);
-                    }
+                const dataObj = await res.json();
+                
+                if (dataObj.status === 'success' && dataObj.data && dataObj.data.nomor_wp) {
+                    ['nomor_wp', 'nama_pekerjaan', 'tim_pelaksana', 'pengawas_k3', 'pengawas_pekerjaan'].forEach(key => {
+                        if (dataObj.data[key]) {
+                            const el = document.getElementById(key);
+                            if(el) {
+                                el.value = dataObj.data[key];
+                                localStorage.setItem(`safbri_${key}`, dataObj.data[key]);
+                            }
+                        }
+                    });
+                    showToast("Data berhasil diekstrak.");
+                    document.getElementById('qr-error-msg').classList.add('hidden');
+                    document.getElementById('manual-override-container').classList.add('hidden');
+                    document.getElementById('btn-next-1').disabled = false;
                 } else {
-                    console.warn(`[DEBUG] OpenCV belum terload. Lanjut tanpa Binarization.`);
+                    triggerScanFail();
                 }
-
-                // 4. Lakukan Scan pada kanvas yang sudah super tajam
-                try {
-                    const result = await QrScanner.scanImage(c, { returnDetailedScanResult: true });
-                    if (result && result.data) {
-                        decodedText = result.data;
-                        console.log(`[DEBUG] Lapis 2 SUKSES! Hasil: ${decodedText}`);
-                    }
-                } catch (err) {
-                    console.warn(`[DEBUG] Lapis 2 GAGAL. Pesan:`, err);
-                }
-            }
-
-            if (decodedText && decodedText.includes('hsse.pln.co.id')) {
-                document.getElementById('qr-error-msg').classList.add('hidden');
-                document.getElementById('manual-override-container').classList.add('hidden');
-                document.getElementById('btn-next-1').disabled = false;
-                
-                extractedData = null;
-                extractionPromise = fetchExtractionData(decodedText);
-                nextStep(2);
-            } else {
+            } catch(err) {
                 triggerScanFail();
             }
+
         } else if (type === 'SB') {
             document.getElementById('btn-next-2').disabled = false;
         }
@@ -340,8 +236,6 @@ const startNewReport = () => {
   resetMedia('SB');
   
   qrScanFails = 0;
-  extractedData = null;
-  extractionPromise = null;
   document.getElementById('qr-error-msg').classList.add('hidden');
   document.getElementById('manual-override-container').classList.add('hidden');
   document.getElementById('manual-override-container').classList.remove('flex');
