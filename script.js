@@ -113,11 +113,11 @@ const setWpStatus = (state) => {
     
     container.classList.remove('hidden');
     spinner.classList.add('hidden');
-    text.className = 'font-semibold text-xs'; 
+    text.className = 'font-semibold text-[11px] tracking-wide'; 
     
     if (state === 'loading') {
         spinner.classList.remove('hidden');
-        text.innerText = '[ o reading wp.. ]';
+        text.innerText = '[reading wp.. ]';
         text.classList.add('text-pln-muted'); 
     } else if (state === 'success') {
         text.innerText = 'Good! Silahkan lanjutkan';
@@ -198,43 +198,40 @@ const scanImage = (file, type) => {
                 0, 0, c.width, c.height
             );
 
-            c.toBlob(async (blob) => {
-                const formData = new FormData();
-                formData.append('file', blob, 'scan_wp.jpg');
+            const base64Image = c.toDataURL('image/jpeg', 0.85);
 
-                try {
-                    const WEBHOOK_URL = '/api/scan-qr'; 
-                    const res = await fetch(WEBHOOK_URL, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    
-                    const dataObj = await res.json();
-                    
-                    if (dataObj.status === 'success' && dataObj.data && dataObj.data.nomor_wp) {
-                        ['nomor_wp', 'nama_pekerjaan', 'tim_pelaksana', 'pengawas_k3', 'pengawas_pekerjaan'].forEach(key => {
-                            if (dataObj.data[key]) {
-                                const el = document.getElementById(key);
-                                if(el) {
-                                    el.value = dataObj.data[key];
-                                    localStorage.setItem(`safbri_${key}`, dataObj.data[key]);
-                                }
+            try {
+                const res = await fetch('/api/extract', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: base64Image })
+                });
+                
+                const dataObj = await res.json();
+                
+                if (dataObj.status === 'success' && dataObj.data && dataObj.data.nomor_wp) {
+                    ['nomor_wp', 'nama_pekerjaan', 'tim_pelaksana', 'pengawas_k3', 'pengawas_pekerjaan'].forEach(key => {
+                        if (dataObj.data[key]) {
+                            const el = document.getElementById(key);
+                            if(el) {
+                                el.value = dataObj.data[key];
+                                localStorage.setItem(`safbri_${key}`, dataObj.data[key]);
                             }
-                        });
-                        setWpStatus('success');
-                        
-                        const manualOverride = document.getElementById('manual-override-container');
-                        if(manualOverride) manualOverride.classList.add('hidden');
-                        
-                        const btnNext = document.getElementById('btn-next-1');
-                        if(btnNext) btnNext.disabled = false;
-                    } else {
-                        triggerScanFail();
-                    }
-                } catch(err) {
+                        }
+                    });
+                    setWpStatus('success');
+                    
+                    const manualOverride = document.getElementById('manual-override-container');
+                    if(manualOverride) manualOverride.classList.add('hidden');
+                    
+                    const btnNext = document.getElementById('btn-next-1');
+                    if(btnNext) btnNext.disabled = false;
+                } else {
                     triggerScanFail();
                 }
-            }, 'image/jpeg', 0.85);
+            } catch(err) {
+                triggerScanFail();
+            }
 
         } else if (type === 'SB') {
             const btnNext2 = document.getElementById('btn-next-2');
