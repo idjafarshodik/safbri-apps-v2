@@ -255,13 +255,32 @@ const resizeAndScanImage = (file, type) => {
                     for (const r of regions) {
                         console.log(`[DEBUG] -> Mengecek Kuadran: ${r.id}`);
                         const c = document.createElement('canvas');
-                        c.width = Math.floor(img.width * r.w);
-                        c.height = Math.floor(img.height * r.h);
                         
-                        console.log(`[DEBUG]    Resolusi Potongan Canvas: ${c.width} x ${c.height}`);
+                        // Hitung dimensi potongan asli
+                        const cropW = img.width * r.w;
+                        const cropH = img.height * r.h;
+                        
+                        // Batasi resolusi maksimal untuk melindungi memori WebAssembly
+                        const maxScanRes = 1000;
+                        let finalW = cropW;
+                        let finalH = cropH;
+                        
+                        if (finalW > finalH) {
+                            if (finalW > maxScanRes) { finalH = Math.round(finalH * maxScanRes / finalW); finalW = maxScanRes; }
+                        } else {
+                            if (finalH > maxScanRes) { finalW = Math.round(finalW * maxScanRes / finalH); finalH = maxScanRes; }
+                        }
+
+                        c.width = finalW;
+                        c.height = finalH;
+                        console.log(`[DEBUG]    Resolusi Aman Canvas: ${c.width} x ${c.height}`);
 
                         const ctx = c.getContext('2d', { willReadFrequently: true });
-                        ctx.drawImage(img, Math.floor(img.width * r.x), Math.floor(img.height * r.y), c.width, c.height, 0, 0, c.width, c.height);
+                        
+                        ctx.drawImage(img, 
+                            Math.floor(img.width * r.x), Math.floor(img.height * r.y), Math.floor(cropW), Math.floor(cropH), 
+                            0, 0, finalW, finalH
+                        );
 
                         try {
                             const result = await QrScanner.scanImage(c, { returnDetailedScanResult: true });
@@ -274,10 +293,6 @@ const resizeAndScanImage = (file, type) => {
                             console.warn(`[DEBUG]    Gagal di Kuadran [${r.id}]. Pesan Error Engine:`, err);
                         }
                     }
-                    if(!decodedText) {
-                        console.error(`[DEBUG] Lapis 2 GAGAL TOTAL: Semua kuadran tidak menemukan QR.`);
-                    }
-                }
             }
 
             const saveMax = 1200;
