@@ -224,50 +224,64 @@ const resizeAndScanImage = (file, type) => {
             if (type === 'WP') {
                 // Lapis 1: Coba Native BarcodeDetector
                 if (!decodedText && window.QrScanner) {
-                    console.log(`[DEBUG] Lapis 2: Memulai Perburuan Kuadran menggunakan WebAssembly (Nimiq)...`);
-                    const regions = [
-                        {id: "Kanan Bawah", x: 0.4, y: 0.4, w: 0.6, h: 0.6},
-                        {id: "Kiri Bawah", x: 0, y: 0.4, w: 0.6, h: 0.6},
-                        {id: "Kanan Atas", x: 0.4, y: 0, w: 0.6, h: 0.6},
-                        {id: "Kiri Atas", x: 0, y: 0, w: 0.6, h: 0.6},
-                        {id: "Full Gambar", x: 0, y: 0, w: 1, h: 1}
+                    console.log(`[DEBUG] Lapis 2: Memulai Perburuan Multi-Scale & Kuadran...`);
+                    // Urutan sangat penting berdasarkan kebiasaan user:
+                    const scanTargets = [
+                        {id: "Full Gambar (Medium) - Untuk Close-up", r: {x: 0, y: 0, w: 1, h: 1}, maxRes: 800},
+                        {id: "Kanan Bawah - Untuk Dokumen A4 Penuh", r: {x: 0.4, y: 0.4, w: 0.6, h: 0.6}, maxRes: 1000},
+                        {id: "Full Gambar (High) - Jika blur/noise", r: {x: 0, y: 0, w: 1, h: 1}, maxRes: 1500},
+                        {id: "Kiri Bawah - Jaga-jaga orientasi rotasi", r: {x: 0, y: 0.4, w: 0.6, h: 0.6}, maxRes: 1000},
+                        {id: "Kanan Atas - Jaga-jaga orientasi rotasi", r: {x: 0.4, y: 0, w: 0.6, h: 0.6}, maxRes: 1000},
+                        {id: "Kiri Atas - Jaga-jaga orientasi rotasi", r: {x: 0, y: 0, w: 0.6, h: 0.6}, maxRes: 1000}
                     ];
 
-                    for (const r of regions) {
-                        console.log(`[DEBUG] -> Mengecek Kuadran: ${r.id}`);
+                    for (const t of scanTargets) {
+                        console.log(`[DEBUG] -> Mengecek: ${t.id}`);
                         const c = document.createElement('canvas');
                         
-                        // Pertahankan 100% resolusi asli pada potongan (TIDAK di-downscale)
-                        c.width = Math.floor(img.width * r.w);
-                        c.height = Math.floor(img.height * r.h);
+                        // Hitung dimensi potongan asli
+                        const cropW = img.width * t.r.w;
+                        const cropH = img.height * t.r.h;
                         
-                        console.log(`[DEBUG]    Resolusi Canvas (1:1 Skala Asli): ${c.width} x ${c.height}`);
+                        // Smart Downscale: Lindungi Wasm dari Overload & Jaga Kualitas Piksel
+                        let finalW = cropW;
+                        let finalH = cropH;
+                        
+                        if (finalW > finalH) {
+                            if (finalW > t.maxRes) { finalH = Math.round(finalH * t.maxRes / finalW); finalW = t.maxRes; }
+                        } else {
+                            if (finalH > t.maxRes) { finalW = Math.round(finalW * t.maxRes / finalH); finalH = t.maxRes; }
+                        }
+
+                        c.width = finalW;
+                        c.height = finalH;
+                        console.log(`[DEBUG]    Resolusi Canvas Terfilter: ${c.width} x ${c.height}`);
 
                         const ctx = c.getContext('2d', { willReadFrequently: true });
                         
-                        // Amankan ketajaman piksel saat merender potongan gambar
+                        // Amankan ketajaman matriks QR (Anti-Aliasing Smoothing)
                         ctx.imageSmoothingEnabled = true;
                         ctx.imageSmoothingQuality = 'high';
 
-                        // Potong (Crop) skala 1:1 persis ke kanvas mesin
+                        // Potong dan Resize dalam satu langkah rendering berkualitas tinggi
                         ctx.drawImage(img, 
-                            Math.floor(img.width * r.x), Math.floor(img.height * r.y), c.width, c.height, 
-                            0, 0, c.width, c.height
+                            Math.floor(img.width * t.r.x), Math.floor(img.height * t.r.y), Math.floor(cropW), Math.floor(cropH), 
+                            0, 0, finalW, finalH
                         );
 
                         try {
                             const result = await QrScanner.scanImage(c, { returnDetailedScanResult: true });
                             if (result && result.data) {
                                 decodedText = result.data;
-                                console.log(`[DEBUG] Lapis 2 SUKSES di Kuadran [${r.id}]! Hasil: ${decodedText}`);
+                                console.log(`[DEBUG] Lapis 2 SUKSES di [${t.id}]! Hasil: ${decodedText}`);
                                 break;
                             }
                         } catch (err) {
-                            console.warn(`[DEBUG]    Gagal di Kuadran [${r.id}]. Pesan Error Engine:`, err);
+                            console.warn(`[DEBUG]    Gagal di [${t.id}].`);
                         }
                     }
                     if(!decodedText) {
-                        console.error(`[DEBUG] Lapis 2 GAGAL TOTAL: Semua kuadran tidak menemukan QR.`);
+                        console.error(`[DEBUG] Lapis 2 GAGAL TOTAL.`);
                     }
                 }
             }
