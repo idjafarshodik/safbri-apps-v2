@@ -228,18 +228,19 @@ const resizeAndScanImage = (file, type) => {
 
                 if (!decodedText && window.QrScanner) {
                     const regions = [
-                        {x: 0, y: 0, w: 1, h: 1},
-                        {x: 0, y: 0.4, w: 1, h: 0.6},
-                        {x: 0, y: 0, w: 1, h: 0.6},
-                        {x: 0.2, y: 0.2, w: 0.6, h: 0.6}
+                        {x: 0.4, y: 0.4, w: 0.6, h: 0.6},
+                        {x: 0, y: 0.4, w: 0.6, h: 0.6},
+                        {x: 0.4, y: 0, w: 0.6, h: 0.6},
+                        {x: 0, y: 0, w: 0.6, h: 0.6},
+                        {x: 0, y: 0, w: 1, h: 1}
                     ];
 
                     for (const r of regions) {
                         const c = document.createElement('canvas');
-                        c.width = img.width * r.w;
-                        c.height = img.height * r.h;
+                        c.width = Math.floor(img.width * r.w);
+                        c.height = Math.floor(img.height * r.h);
                         const ctx = c.getContext('2d', { willReadFrequently: true });
-                        ctx.drawImage(img, img.width * r.x, img.height * r.y, c.width, c.height, 0, 0, c.width, c.height);
+                        ctx.drawImage(img, Math.floor(img.width * r.x), Math.floor(img.height * r.y), c.width, c.height, 0, 0, c.width, c.height);
 
                         try {
                             const result = await QrScanner.scanImage(c, { returnDetailedScanResult: true });
