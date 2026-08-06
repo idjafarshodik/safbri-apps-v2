@@ -30,37 +30,6 @@ window.addEventListener('DOMContentLoaded', () => {
     if (val && document.getElementById(id)) document.getElementById(id).value = val;
   });
 
-  ['WP', 'SB'].forEach(type => {
-    const base64 = localStorage.getItem(`safbri_img_${type}`);
-    if (base64) {
-      const img = new Image();
-      img.onload = () => {
-        images[type] = img;
-        document.getElementById(`init-ui-${type}`).classList.add('hidden');
-        const preview = document.getElementById(`preview-${type}`);
-        preview.src = base64;
-        preview.classList.remove('hidden');
-        document.getElementById(`retake-btn-${type}`).classList.remove('hidden');
-        
-        if(type === 'WP') {
-            document.getElementById('btn-next-1').disabled = false;
-            const container = document.getElementById('container-WP');
-            if (img.width <= img.height) {
-                container.classList.remove('aspect-video');
-                container.classList.add('aspect-[3/4]');
-            } else {
-                container.classList.remove('aspect-[3/4]');
-                container.classList.add('aspect-video');
-            }
-        }
-        if(type === 'SB') {
-            document.getElementById('btn-next-2').disabled = false;
-        }
-      };
-      img.src = base64;
-    }
-  });
-  
   document.getElementById('ignore-qr').addEventListener('change', (e) => {
       document.getElementById('btn-next-1').disabled = !e.target.checked && !images.WP;
       if (e.target.checked && images.WP) {
@@ -210,151 +179,91 @@ const triggerScanFail = () => {
     }
 };
 
-const resizeAndScanImage = (file, type) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const img = new Image();
-        img.onload = async () => {
-            let decodedText = null;
+const scanImage = (file, type) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    
+    img.onload = async () => {
+        images[type] = img;
+        let decodedText = null;
 
-            console.log(`\n--- [DEBUG QR-SCAN] MEMULAI PROSES ---`);
-            console.log(`[DEBUG] Sumber Tipe: ${type}`);
-            console.log(`[DEBUG] Resolusi Asli Gambar: ${img.width} x ${img.height} pixels`);
+        document.getElementById(`init-ui-${type}`).classList.add('hidden');
+        const preview = document.getElementById(`preview-${type}`);
+        preview.src = objectUrl;
+        preview.classList.remove('hidden');
+        document.getElementById(`retake-btn-${type}`).classList.remove('hidden');
 
-            if (type === 'WP') {
-                // Lapis 1: Coba Native BarcodeDetector
-                if (!decodedText && window.QrScanner) {
-                    console.log(`[DEBUG] Lapis 2: Memulai Perburuan Multi-Scale & Kuadran...`);
-                    // Urutan sangat penting berdasarkan kebiasaan user:
-                    const scanTargets = [
-                        {id: "Full Gambar (Medium) - Untuk Close-up", r: {x: 0, y: 0, w: 1, h: 1}, maxRes: 800},
-                        {id: "Kanan Bawah - Untuk Dokumen A4 Penuh", r: {x: 0.4, y: 0.4, w: 0.6, h: 0.6}, maxRes: 1000},
-                        {id: "Full Gambar (High) - Jika blur/noise", r: {x: 0, y: 0, w: 1, h: 1}, maxRes: 1500},
-                        {id: "Kiri Bawah - Jaga-jaga orientasi rotasi", r: {x: 0, y: 0.4, w: 0.6, h: 0.6}, maxRes: 1000},
-                        {id: "Kanan Atas - Jaga-jaga orientasi rotasi", r: {x: 0.4, y: 0, w: 0.6, h: 0.6}, maxRes: 1000},
-                        {id: "Kiri Atas - Jaga-jaga orientasi rotasi", r: {x: 0, y: 0, w: 0.6, h: 0.6}, maxRes: 1000}
-                    ];
-
-                    for (const t of scanTargets) {
-                        console.log(`[DEBUG] -> Mengecek: ${t.id}`);
-                        const c = document.createElement('canvas');
-                        
-                        // Hitung dimensi potongan asli
-                        const cropW = img.width * t.r.w;
-                        const cropH = img.height * t.r.h;
-                        
-                        // Smart Downscale: Lindungi Wasm dari Overload & Jaga Kualitas Piksel
-                        let finalW = cropW;
-                        let finalH = cropH;
-                        
-                        if (finalW > finalH) {
-                            if (finalW > t.maxRes) { finalH = Math.round(finalH * t.maxRes / finalW); finalW = t.maxRes; }
-                        } else {
-                            if (finalH > t.maxRes) { finalW = Math.round(finalW * t.maxRes / finalH); finalH = t.maxRes; }
-                        }
-
-                        c.width = finalW;
-                        c.height = finalH;
-                        console.log(`[DEBUG]    Resolusi Canvas Terfilter: ${c.width} x ${c.height}`);
-
-                        const ctx = c.getContext('2d', { willReadFrequently: true });
-                        
-                        // Amankan ketajaman matriks QR (Anti-Aliasing Smoothing)
-                        ctx.imageSmoothingEnabled = true;
-                        ctx.imageSmoothingQuality = 'high';
-
-                        // Potong dan Resize dalam satu langkah rendering berkualitas tinggi
-                        ctx.drawImage(img, 
-                            Math.floor(img.width * t.r.x), Math.floor(img.height * t.r.y), Math.floor(cropW), Math.floor(cropH), 
-                            0, 0, finalW, finalH
-                        );
-
-                        try {
-                            const result = await QrScanner.scanImage(c, { returnDetailedScanResult: true });
-                            if (result && result.data) {
-                                decodedText = result.data;
-                                console.log(`[DEBUG] Lapis 2 SUKSES di [${t.id}]! Hasil: ${decodedText}`);
-                                break;
-                            }
-                        } catch (err) {
-                            console.warn(`[DEBUG]    Gagal di [${t.id}].`);
-                        }
-                    }
-                    if(!decodedText) {
-                        console.error(`[DEBUG] Lapis 2 GAGAL TOTAL.`);
-                    }
-                }
-            }
-
-            const saveMax = 1200;
-            let fW = img.width;
-            let fH = img.height;
-            if (fW > fH) {
-                if (fW > saveMax) { fH = Math.round(fH * saveMax / fW); fW = saveMax; }
+        if (type === 'WP') {
+            const container = document.getElementById('container-WP');
+            if (img.width <= img.height) {
+                container.classList.remove('aspect-video');
+                container.classList.add('aspect-[3/4]');
             } else {
-                if (fH > saveMax) { fW = Math.round(fW * saveMax / fH); fH = saveMax; }
-            }
-            
-            const finalCanvas = document.createElement('canvas');
-            finalCanvas.width = fW;
-            finalCanvas.height = fH;
-            const finalCtx = finalCanvas.getContext('2d');
-            finalCtx.drawImage(img, 0, 0, fW, fH);
-            
-            const base64Compressed = finalCanvas.toDataURL('image/jpeg', 0.85);
-            localStorage.setItem(`safbri_img_${type}`, base64Compressed);
-            
-            images[type] = new Image();
-            images[type].src = base64Compressed;
-            
-            document.getElementById(`init-ui-${type}`).classList.add('hidden');
-            const preview = document.getElementById(`preview-${type}`);
-            preview.src = base64Compressed;
-            preview.classList.remove('hidden');
-            document.getElementById(`retake-btn-${type}`).classList.remove('hidden');
-
-            if (type === 'WP') {
-                const container = document.getElementById('container-WP');
-                if (img.width <= img.height) {
-                    container.classList.remove('aspect-video');
-                    container.classList.add('aspect-[3/4]');
-                } else {
-                    container.classList.remove('aspect-[3/4]');
-                    container.classList.add('aspect-video');
-                }
+                container.classList.remove('aspect-[3/4]');
+                container.classList.add('aspect-video');
             }
 
-            if (type === 'WP') {
-                if (decodedText && decodedText.includes('hsse.pln.co.id')) {
-                    document.getElementById('qr-error-msg').classList.add('hidden');
-                    document.getElementById('manual-override-container').classList.add('hidden');
-                    document.getElementById('btn-next-1').disabled = false;
-                    
-                    extractedData = null;
-                    extractionPromise = fetchExtractionData(decodedText);
-                    nextStep(2);
-                } else {
-                    triggerScanFail();
-                }
-            } else if (type === 'SB') {
-                document.getElementById('btn-next-2').disabled = false;
+            if ('BarcodeDetector' in window) {
+                try {
+                    const detector = new BarcodeDetector({ formats: ['qr_code'] });
+                    const barcodes = await detector.detect(img);
+                    if (barcodes.length > 0) decodedText = barcodes[0].rawValue;
+                } catch(err) {}
             }
-        };
-        img.src = e.target.result;
+
+            if (!decodedText && window.QrScanner) {
+                const c = document.createElement('canvas');
+                const cropW = img.width * 0.6;
+                const cropH = img.height * 0.5;
+                
+                c.width = Math.floor(cropW);
+                c.height = Math.floor(cropH);
+                
+                const ctx = c.getContext('2d', { willReadFrequently: true });
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+
+                ctx.drawImage(img, 
+                    Math.floor(img.width * 0.4), Math.floor(img.height * 0.5), c.width, c.height, 
+                    0, 0, c.width, c.height
+                );
+
+                try {
+                    const result = await QrScanner.scanImage(c, { returnDetailedScanResult: true });
+                    if (result && result.data) decodedText = result.data;
+                } catch (err) {}
+            }
+
+            if (decodedText && decodedText.includes('hsse.pln.co.id')) {
+                document.getElementById('qr-error-msg').classList.add('hidden');
+                document.getElementById('manual-override-container').classList.add('hidden');
+                document.getElementById('btn-next-1').disabled = false;
+                
+                extractedData = null;
+                extractionPromise = fetchExtractionData(decodedText);
+                nextStep(2);
+            } else {
+                triggerScanFail();
+            }
+        } else if (type === 'SB') {
+            document.getElementById('btn-next-2').disabled = false;
+        }
     };
-    reader.readAsDataURL(file);
+    img.src = objectUrl;
 };
 
 const handleFile = (input, type) => {
   if (input.files && input.files[0]) {
-      resizeAndScanImage(input.files[0], type);
+      scanImage(input.files[0], type);
   }
   input.value = '';
 };
 
 const resetMedia = (type) => {
+  if (images[type]) {
+      URL.revokeObjectURL(images[type].src);
+  }
   images[type] = null;
-  localStorage.removeItem(`safbri_img_${type}`);
   document.getElementById(`preview-${type}`).classList.add('hidden');
   document.getElementById(`retake-btn-${type}`).classList.add('hidden');
   document.getElementById(`init-ui-${type}`).classList.remove('hidden');
@@ -393,46 +302,65 @@ const startNewReport = () => {
   updateUI();
 };
 
-const generateCollage = () => {
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  
-  const isPortraitSB = images.SB.width <= images.SB.height;
-  const isPortraitWP = images.WP.width <= images.WP.height;
-  
-  const gap = 32; 
+const generateCollageAndResize = async () => {
+    const processImage = (imgObj, targetMax) => {
+        const canvas = document.createElement('canvas');
+        let w = imgObj.width;
+        let h = imgObj.height;
+        
+        if (w > h) {
+            if (w > targetMax) { h = Math.round(h * targetMax / w); w = targetMax; }
+        } else {
+            if (h > targetMax) { w = Math.round(w * targetMax / h); h = targetMax; }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(imgObj, 0, 0, w, h);
+        return canvas;
+    };
 
-  if (isPortraitSB && isPortraitWP) {
-    const targetWidth = 1200;
-    const hSB = (images.SB.height / images.SB.width) * targetWidth;
-    const hWP = (images.WP.height / images.WP.width) * targetWidth;
-    const innerHeight = Math.max(hSB, hWP);
+    const wpCanvas = processImage(images.WP, 1200);
+    const sbCanvas = processImage(images.SB, 1200);
 
-    canvas.width = (targetWidth * 2) + (gap * 3);
-    canvas.height = innerHeight + (gap * 2);
+    const finalCanvas = document.createElement('canvas');
+    const ctx = finalCanvas.getContext('2d');
+    
+    const isPortraitSB = images.SB.width <= images.SB.height;
+    const isPortraitWP = images.WP.width <= images.WP.height;
+    
+    const gap = 32; 
 
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  
-    ctx.drawImage(images.SB, gap, gap + (innerHeight - hSB) / 2, targetWidth, hSB);
-    ctx.drawImage(images.WP, (gap * 2) + targetWidth, gap + (innerHeight - hWP) / 2, targetWidth, hWP);
-    
-  } else {
-    const targetWidth = 1600;
-    const hSB = (images.SB.height / images.SB.width) * targetWidth;
-    const hWP = (images.WP.height / images.WP.width) * targetWidth;
-    
-    canvas.width = targetWidth + (gap * 2);
-    canvas.height = hSB + hWP + (gap * 3);
-    
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    ctx.drawImage(images.SB, gap, gap, targetWidth, hSB);
-    ctx.drawImage(images.WP, gap, (gap * 2) + hSB, targetWidth, hWP);
-  }
+    if (isPortraitSB && isPortraitWP) {
+        const targetWidth = 1200;
+        const hSB = (sbCanvas.height / sbCanvas.width) * targetWidth;
+        const hWP = (wpCanvas.height / wpCanvas.width) * targetWidth;
+        const innerHeight = Math.max(hSB, hWP);
 
-  return canvas.toDataURL('image/jpeg', 0.92); 
+        finalCanvas.width = (targetWidth * 2) + (gap * 3);
+        finalCanvas.height = innerHeight + (gap * 2);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+    
+        ctx.drawImage(sbCanvas, gap, gap + (innerHeight - hSB) / 2, targetWidth, hSB);
+        ctx.drawImage(wpCanvas, (gap * 2) + targetWidth, gap + (innerHeight - hWP) / 2, targetWidth, hWP);
+    } else {
+        const targetWidth = 1600;
+        const hSB = (sbCanvas.height / sbCanvas.width) * targetWidth;
+        const hWP = (wpCanvas.height / wpCanvas.width) * targetWidth;
+        
+        finalCanvas.width = targetWidth + (gap * 2);
+        finalCanvas.height = hSB + hWP + (gap * 3);
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+        
+        ctx.drawImage(sbCanvas, gap, gap, targetWidth, hSB);
+        ctx.drawImage(wpCanvas, gap, (gap * 2) + hSB, targetWidth, hWP);
+    }
+
+    return finalCanvas.toDataURL('image/jpeg', 0.85);
 };
 
 document.getElementById('safetyForm').addEventListener('submit', async (e) => {
@@ -447,6 +375,8 @@ document.getElementById('safetyForm').addEventListener('submit', async (e) => {
   btn.innerText = 'MENGIRIM...';
 
   try {
+    const finalCollageBase64 = await generateCollageAndResize();
+      
     const payload = {
       nama_pekerjaan: document.getElementById('nama_pekerjaan').value,
       tanggal_pekerjaan: document.getElementById('tanggal_pekerjaan').value,
@@ -455,7 +385,7 @@ document.getElementById('safetyForm').addEventListener('submit', async (e) => {
       pengawas_k3: document.getElementById('pengawas_k3').value,
       pengawas_pekerjaan: document.getElementById('pengawas_pekerjaan').value,
       jumlah_pelaksana: document.getElementById('jumlah_pelaksana').value,
-      foto_collage: generateCollage()
+      foto_collage: finalCollageBase64
     };
     
     let optionalWp = document.getElementById('nomor_wp');
