@@ -44,6 +44,14 @@ window.addEventListener('DOMContentLoaded', () => {
         
         if(type === 'WP') {
             document.getElementById('btn-next-1').disabled = false;
+            const container = document.getElementById('container-WP');
+            if (img.width <= img.height) {
+                container.classList.remove('aspect-video');
+                container.classList.add('aspect-[3/4]');
+            } else {
+                container.classList.remove('aspect-[3/4]');
+                container.classList.add('aspect-video');
+            }
         }
         if(type === 'SB') {
             document.getElementById('btn-next-2').disabled = false;
@@ -272,6 +280,17 @@ const resizeAndScanImage = (file, type) => {
             document.getElementById(`retake-btn-${type}`).classList.remove('hidden');
 
             if (type === 'WP') {
+                const container = document.getElementById('container-WP');
+                if (img.width <= img.height) {
+                    container.classList.remove('aspect-video');
+                    container.classList.add('aspect-[3/4]');
+                } else {
+                    container.classList.remove('aspect-[3/4]');
+                    container.classList.add('aspect-video');
+                }
+            }
+
+            if (type === 'WP') {
                 if (decodedText && decodedText.includes('hsse.pln.co.id')) {
                     document.getElementById('qr-error-msg').classList.add('hidden');
                     document.getElementById('manual-override-container').classList.add('hidden');
@@ -307,6 +326,10 @@ const resetMedia = (type) => {
   document.getElementById(`init-ui-${type}`).classList.remove('hidden');
   
   if (type === 'WP') {
+      const container = document.getElementById('container-WP');
+      container.classList.remove('aspect-[3/4]');
+      container.classList.add('aspect-video');
+      
       document.getElementById('btn-next-1').disabled = true;
       document.getElementById('ignore-qr').checked = false;
   }
